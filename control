@@ -1,0 +1,9 @@
+Package: com.test.testtweak
+Name: TestTweak
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Depends: mobilesubstrate
+Description: Test Tweak Template
+Maintainer: YourName
+Author: YourName
+Section: Tweaks
