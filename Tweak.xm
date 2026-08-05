@@ -2,12 +2,11 @@
 
 %hook GlobalUserInfo
 
-- (BOOL)ad_free {
-
+- (BOOL)ad_free
+{
     NSLog(@"[WoAiKaAdFree] ad_free enabled");
 
     return YES;
-
 }
 
 %end
