@@ -1,4 +1,3 @@
-  // 1. 百度贴吧主包常见的开屏/广告类覆盖列表
   NSArray *targetClasses = @[
       @"TBSplashViewController",
       @"TBAdSplashViewController",
@@ -39,7 +38,6 @@
       }
   }
 
-  // 2. 全局劫持 UIWindow，自动扫描并移除所有开屏广告视图
   Class windowClass = NSClassFromString(@"UIWindow");
   if (windowClass) {
       Method makeKeyMethod = class_getInstanceMethod(windowClass, @selector(makeKeyAndVisible));
