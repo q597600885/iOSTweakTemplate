@@ -1,19 +1,25 @@
-name: Build Universal iOS Tweak
+name: Build TrollStore Tweak
 
 
 on:
+
   workflow_dispatch:
 
   push:
+
     branches:
       - main
 
 
+
 jobs:
+
 
   build:
 
+
     runs-on: macos-14
+
 
 
     steps:
@@ -51,7 +57,7 @@ jobs:
 
 
 
-      - name: Install Tools
+      - name: Install ldid
 
         run: |
 
@@ -59,7 +65,7 @@ jobs:
 
 
 
-      - name: Generate Config Files
+      - name: Generate Config
 
         run: |
 
@@ -72,27 +78,19 @@ jobs:
           ./Scripts/make_filter.sh
 
 
-          ./Scripts/make_control.sh
-
-
-          echo "===== tweak_config.mk ====="
+          echo "===== Config ====="
 
           cat tweak_config.mk
 
 
-          echo "===== Filter.plist ====="
+          echo "===== Filter ====="
 
           cat Filter.plist
 
 
-          echo "===== control ====="
-
-          cat control
 
 
-
-
-      - name: Build Tweak
+      - name: Build dylib
 
         run: |
 
@@ -111,35 +109,34 @@ jobs:
 
 
 
-      - name: Check Build Output
+      - name: Prepare dylib
 
         run: |
 
-          echo "===== dylib ====="
-
-          find . -name "*.dylib" -print
+          mkdir -p output
 
 
-          echo "===== deb ====="
-
-          find . -name "*.deb" -print
+          cp .theos/obj/*.dylib output/
 
 
+          echo "===== Output ====="
 
-      - name: Upload Build Result
+          ls -al output
+
+
+
+
+      - name: Upload dylib
 
         uses: actions/upload-artifact@v4
 
 
         with:
 
-          name: Universal-iOS-Tweak-Output
+
+          name: TrollStore-Dylib
 
 
-          path: |
+          path:
 
-            .theos/obj/*.dylib
-
-            packages/*.deb
-
-          if-no-files-found: warn
+            output/*.dylib
