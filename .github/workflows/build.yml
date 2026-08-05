@@ -1,12 +1,10 @@
 name: Build WoAiKaAdFree dylib
 
-
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-
 
 jobs:
 
@@ -14,18 +12,14 @@ jobs:
 
     runs-on: macos-14
 
-
     steps:
-
 
       - name: Checkout
         uses: actions/checkout@v4
 
 
-
       - name: Install Theos
         run: |
-
           rm -rf "$HOME/theos"
 
           git clone --recursive \
@@ -35,35 +29,24 @@ jobs:
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
 
-
       - name: Install SDK
         run: |
-
-          mkdir -p "$HOME/theos/sdks"
-
-          rm -rf "$HOME/theos/sdks"/*
+          rm -rf "$HOME/theos/sdks"
 
           git clone --depth=1 \
           https://github.com/theos/sdks.git \
           "$HOME/theos/sdks"
 
 
-
       - name: Install ldid
         run: |
-
           brew install ldid || true
 
 
-
-      - name: Build
-
+      - name: Build dylib
         run: |
-
           export THEOS="$HOME/theos"
-
           export THEOS_PACKAGE_SCHEME=rootless
-
 
           make clean
 
@@ -72,37 +55,25 @@ jobs:
           THEOS_PACKAGE_SCHEME=rootless
 
 
-
-      - name: Debug Files
-
+      - name: Check Output
         run: |
+          echo "===== Find dylib ====="
 
-          echo "===== ROOT ====="
+          find . -name "*.dylib" -print
 
-          ls -la
+          echo "===== Find WoAiKaAdFree ====="
 
-
-          echo "===== SEARCH dylib ====="
-
-          find . -type f -name "*.dylib" || true
+          find . -name "*WoAiKaAdFree*" -print
 
 
-          echo "===== SEARCH all ====="
-
-          find . -type f | grep WoAiKa || true
-
-
-
-      - name: Upload All Build Files
-
+      - name: Upload Build Output
         uses: actions/upload-artifact@v4
 
         with:
-
           name: WoAiKaAdFree-output
 
           path: |
+            .theos/
+            packages/
 
-            .
-
-          if-no-files-found: error
+          if-no-files-found: warn
