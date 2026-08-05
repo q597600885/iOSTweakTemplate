@@ -1,10 +1,12 @@
 name: Build WoAiKaAdFree dylib
 
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+
 
 jobs:
 
@@ -12,14 +14,18 @@ jobs:
 
     runs-on: macos-14
 
+
     steps:
+
 
       - name: Checkout
         uses: actions/checkout@v4
 
 
+
       - name: Install Theos
         run: |
+
           rm -rf "$HOME/theos"
 
           git clone --recursive \
@@ -29,8 +35,10 @@ jobs:
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
 
+
       - name: Install SDK
         run: |
+
           rm -rf "$HOME/theos/sdks"
 
           git clone --depth=1 \
@@ -38,42 +46,71 @@ jobs:
           "$HOME/theos/sdks"
 
 
+
       - name: Install ldid
         run: |
+
           brew install ldid || true
 
 
-      - name: Build dylib
+
+      - name: Build WoAiKaAdFree
         run: |
+
           export THEOS="$HOME/theos"
+
           export THEOS_PACKAGE_SCHEME=rootless
 
+
           make clean
+
 
           make \
           FINALPACKAGE=1 \
           THEOS_PACKAGE_SCHEME=rootless
 
 
-      - name: Check Output
+
+      - name: Debug Build Result
         run: |
-          echo "===== Find dylib ====="
 
-          find . -name "*.dylib" -print
+          echo "===== Current Path ====="
 
-          echo "===== Find WoAiKaAdFree ====="
-
-          find . -name "*WoAiKaAdFree*" -print
+          pwd
 
 
-      - name: Upload Build Output
+          echo "===== Files ====="
+
+          ls -la
+
+
+          echo "===== Search dylib ====="
+
+          find . -type f -name "*.dylib" -print || true
+
+
+          echo "===== Search deb ====="
+
+          find . -type f -name "*.deb" -print || true
+
+
+          echo "===== Search WoAiKa ====="
+
+          find . -type f | grep WoAiKa || true
+
+
+
+      - name: Upload Result
+
         uses: actions/upload-artifact@v4
 
         with:
-          name: WoAiKaAdFree-output
+
+          name: WoAiKaAdFree-build-result
+
 
           path: |
-            .theos/
-            packages/
+
+            .
 
           if-no-files-found: warn
