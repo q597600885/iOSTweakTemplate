@@ -1,5 +1,13 @@
 #import <Foundation/Foundation.h>
 
-%ctor {
-    NSLog(@"[TestTweak] Loaded");
+%hook GlobalUserInfo
+
+- (BOOL)ad_free {
+
+    NSLog(@"[WoAiKaAdFree] ad_free enabled");
+
+    return YES;
+
 }
+
+%end
