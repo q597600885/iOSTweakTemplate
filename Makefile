@@ -3,7 +3,6 @@ ARCHS = arm64 arm64e
 TARGET = iphone:clang:latest:15.0
 
 
-# 自动生成的配置
 include tweak_config.mk
 
 
