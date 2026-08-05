@@ -6,6 +6,7 @@ on:
     branches:
       - main
 
+
 jobs:
 
   build:
@@ -21,6 +22,7 @@ jobs:
 
       - name: Install Theos
         run: |
+
           rm -rf "$HOME/theos"
 
           git clone --recursive \
@@ -32,9 +34,8 @@ jobs:
 
       - name: Install SDK
         run: |
-          rm -rf "$HOME/theos/sdks"
 
-          mkdir -p "$HOME/theos/sdks"
+          rm -rf "$HOME/theos/sdks"
 
           git clone --depth=1 \
           https://github.com/theos/sdks.git \
@@ -43,7 +44,21 @@ jobs:
 
       - name: Install ldid
         run: |
+
           brew install ldid || true
+
+
+      - name: Check Environment
+        run: |
+
+          export THEOS="$HOME/theos"
+
+          echo "THEOS=$THEOS"
+
+          ls -la "$THEOS"
+
+          ls -la "$THEOS/sdks"
+
 
 
       - name: Build dylib
@@ -56,7 +71,20 @@ jobs:
 
           make clean
 
-          make FINALPACKAGE=1
+
+          make \
+          FINALPACKAGE=1 \
+          THEOS_PACKAGE_SCHEME=rootless
+
+
+
+      - name: Find Build Output
+        run: |
+
+          echo "Searching dylib..."
+
+          find . -name "*.dylib" -print
+
 
 
       - name: Upload dylib
@@ -67,6 +95,6 @@ jobs:
           name: WoAiKaAdFree-dylib
 
           path: |
-            .theos/**/*.dylib
+            **/*.dylib
 
           if-no-files-found: error
