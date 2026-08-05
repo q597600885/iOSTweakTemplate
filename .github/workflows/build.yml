@@ -2,35 +2,26 @@ name: Build Universal iOS Tweak
 
 
 on:
-
   workflow_dispatch:
 
   push:
-
     branches:
-
       - main
-
 
 
 jobs:
 
-
   build:
 
-
     runs-on: macos-14
-
 
 
     steps:
 
 
-
       - name: Checkout
 
         uses: actions/checkout@v4
-
 
 
 
@@ -48,7 +39,6 @@ jobs:
 
 
 
-
       - name: Install SDK
 
         run: |
@@ -61,13 +51,11 @@ jobs:
 
 
 
-
       - name: Install Tools
 
         run: |
 
           brew install ldid || true
-
 
 
 
@@ -77,17 +65,27 @@ jobs:
 
           chmod +x Scripts/*.sh
 
+
+          ./Scripts/make_config.sh
+
+
           ./Scripts/make_filter.sh
+
 
           ./Scripts/make_control.sh
 
 
-          echo "===== Generated Filter.plist ====="
+          echo "===== tweak_config.mk ====="
+
+          cat tweak_config.mk
+
+
+          echo "===== Filter.plist ====="
 
           cat Filter.plist
 
 
-          echo "===== Generated control ====="
+          echo "===== control ====="
 
           cat control
 
@@ -113,31 +111,29 @@ jobs:
 
 
 
-      - name: Check Output
+      - name: Check Build Output
 
         run: |
 
           echo "===== dylib ====="
 
-          find . -name "*.dylib"
+          find . -name "*.dylib" -print
 
 
           echo "===== deb ====="
 
-          find . -name "*.deb"
+          find . -name "*.deb" -print
 
 
 
-
-      - name: Upload Result
+      - name: Upload Build Result
 
         uses: actions/upload-artifact@v4
 
 
         with:
 
-
-          name: Universal-Tweak-Output
+          name: Universal-iOS-Tweak-Output
 
 
           path: |
@@ -145,6 +141,5 @@ jobs:
             .theos/obj/*.dylib
 
             packages/*.deb
-
 
           if-no-files-found: warn
