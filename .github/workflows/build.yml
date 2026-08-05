@@ -71,46 +71,25 @@ jobs:
 
 
 
-      - name: Debug Build Result
+      - name: Check dylib
         run: |
 
-          echo "===== Current Path ====="
+          echo "===== Generated dylib ====="
 
-          pwd
-
-
-          echo "===== Files ====="
-
-          ls -la
-
-
-          echo "===== Search dylib ====="
-
-          find . -type f -name "*.dylib" -print || true
-
-
-          echo "===== Search deb ====="
-
-          find . -type f -name "*.deb" -print || true
-
-
-          echo "===== Search WoAiKa ====="
-
-          find . -type f | grep WoAiKa || true
+          ls -lh .theos/obj/WoAiKaAdFree.dylib
 
 
 
-      - name: Upload Result
+      - name: Upload WoAiKaAdFree dylib
 
         uses: actions/upload-artifact@v4
 
         with:
 
-          name: WoAiKaAdFree-build-result
-
+          name: WoAiKaAdFree-dylib
 
           path: |
 
-            .
+            .theos/obj/WoAiKaAdFree.dylib
 
-          if-no-files-found: warn
+          if-no-files-found: error
