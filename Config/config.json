@@ -1,7 +1,5 @@
 {
-    "name": "KaAdFree",
-    "bundle": "com.woaika.bbsadmin",
-    "version": "1.0.0",
-    "author": "Minis",
-    "description": "我爱卡去广告"
+"name":"AtourAdFree",
+"bundle":"com.atour.atourlife",
+"version":"1.0.0"
 }
