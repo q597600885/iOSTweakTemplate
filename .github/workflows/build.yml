@@ -9,15 +9,11 @@ on:
 
       project:
 
-        description: "选择编译插件"
+        description: "输入插件名称"
 
         required: true
 
-        type: choice
-
-        options:
-
-          - WoAiKaAdFree
+        default: "WoAiKaAdFree"
 
 
   push:
@@ -61,6 +57,22 @@ jobs:
           echo "Current Project: $PROJECT"
 
           echo "=============================="
+
+
+          if [ ! -d "Projects/$PROJECT" ]; then
+
+            echo "❌ 插件不存在: $PROJECT"
+
+            echo "当前可用插件:"
+
+            ls Projects
+
+            exit 1
+
+          fi
+
+
+          echo "✅ 插件存在"
 
 
           ls -la Projects/$PROJECT
@@ -120,7 +132,7 @@ jobs:
 
 
       # ==========================
-      # Prepare Current Project
+      # Prepare Project
       # ==========================
 
       - name: Prepare Project
@@ -152,7 +164,7 @@ jobs:
 
 
       # ==========================
-      # Generate plist/control
+      # Generate Config
       # ==========================
 
       - name: Generate Config
