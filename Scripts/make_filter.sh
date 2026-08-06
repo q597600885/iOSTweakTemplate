@@ -1,20 +1,32 @@
 #!/bin/bash
 
-CONFIG="Config/config.json"
+
+CONFIG="Projects/$PROJECT/config.json"
 
 
-NAME=$(python3 -c "import json;print(json.load(open('$CONFIG'))['bundle'])")
+if [ ! -f "$CONFIG" ]; then
+
+    echo "❌ Config.json not found: $CONFIG"
+
+    exit 1
+
+fi
+
+
+BUNDLE=$(python3 -c "import json;print(json.load(open('$CONFIG'))['bundle'])")
 
 
 cat > Filter.plist <<EOF
 {
     Filter = {
         Bundles = (
-            "$NAME"
+            "$BUNDLE"
         );
     };
 }
 EOF
 
 
-echo "Filter.plist generated"
+echo "===== Filter.plist generated ====="
+
+cat Filter.plist
