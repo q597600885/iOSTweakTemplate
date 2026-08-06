@@ -5,9 +5,22 @@ on:
 
   workflow_dispatch:
 
+    inputs:
+
+      project:
+
+        description: "选择要编译的插件"
+
+        required: true
+
+        default: "WoAiKaAdFree"
+
+
+
   push:
 
     branches:
+
       - main
 
 
@@ -21,6 +34,11 @@ jobs:
     runs-on: macos-14
 
 
+    env:
+
+      PROJECT: ${{ github.event.inputs.project || 'WoAiKaAdFree' }}
+
+
 
     steps:
 
@@ -28,6 +46,16 @@ jobs:
       - name: Checkout
 
         uses: actions/checkout@v4
+
+
+
+      - name: Show Project
+
+        run: |
+
+          echo "Build Project: $PROJECT"
+
+          ls Projects/$PROJECT
 
 
 
@@ -49,7 +77,8 @@ jobs:
 
         run: |
 
-          rm -rf "$HOME/theos/sdks"
+          mkdir -p "$HOME/theos/sdks"
+
 
           git clone --depth=1 \
           https://github.com/theos/sdks.git \
@@ -57,11 +86,26 @@ jobs:
 
 
 
-      - name: Install ldid
+      - name: Install Tools
 
         run: |
 
           brew install ldid || true
+
+
+
+      - name: Prepare Project
+
+        run: |
+
+          cp Projects/$PROJECT/Tweak.xm ./Tweak.xm
+
+          cp Projects/$PROJECT/config.json ./config.json
+
+
+          echo "===== Current Plugin ====="
+
+          cat config.json
 
 
 
@@ -74,55 +118,34 @@ jobs:
 
           ./Scripts/make_config.sh
 
-
           ./Scripts/make_filter.sh
 
 
-          echo "===== Config ====="
 
-          cat tweak_config.mk
-
-
-          echo "===== Filter ====="
-
-          cat Filter.plist
-
-
-
-
-      - name: Build dylib
+      - name: Build
 
         run: |
 
           export THEOS="$HOME/theos"
 
-          export THEOS_PACKAGE_SCHEME=rootless
-
 
           make clean
 
-
-          make \
-          FINALPACKAGE=1 \
-          THEOS_PACKAGE_SCHEME=rootless
+          make FINALPACKAGE=1
 
 
 
-
-      - name: Prepare dylib
+      - name: Output
 
         run: |
 
-          mkdir -p output
+          mkdir output
 
 
           cp .theos/obj/*.dylib output/
 
 
-          echo "===== Output ====="
-
           ls -al output
-
 
 
 
@@ -133,10 +156,6 @@ jobs:
 
         with:
 
+          name: ${{ env.PROJECT }}-dylib
 
-          name: TrollStore-Dylib
-
-
-          path:
-
-            output/*.dylib
+          path: output/*.dylib
