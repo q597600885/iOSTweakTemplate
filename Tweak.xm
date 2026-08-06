@@ -35,33 +35,14 @@
 
 - (void)makeKeyAndVisible {
     %orig;
-    
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            
-            NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-            BOOL hasShown = [defaults boolForKey:@"AtourAdFree_Injected_Once"];
-            
-            if (!hasShown) {
-                [defaults setBool:YES forKey:@"AtourAdFree_Injected_Once"];
-                [defaults synchronize];
-                
-                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🎉 亚朵去广告" 
-                                                                                message:@"插件注入成功！开屏广告已永久去除，此提示仅出现一次。" 
-                                                                         preferredStyle:UIAlertControllerStyleAlert];
-                [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                
-                UIWindow *window = (UIWindow *)self;
-                UIViewController *rootVC = window.rootViewController;
-                while (rootVC.presentedViewController) {
-                    rootVC = rootVC.presentedViewController;
-                }
-                [rootVC presentViewController:alert animated:YES completion:nil];
-            }
-            
-        });
-    });
+    UIWindow *window = (UIWindow *)self;
+    for (UIView *subview in window.subviews) {
+        NSString *className = NSStringFromClass([subview class]);
+        if ([className containsString:@"Launch"] || [className containsString:@"Splash"] || [className containsString:@"Ad"]) {
+            subview.hidden = YES;
+            [subview removeFromSuperview];
+        }
+    }
 }
 
 %end
