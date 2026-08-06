@@ -9,7 +9,7 @@ on:
 
       project:
 
-        description: "选择要编译的插件"
+        description: "选择编译插件"
 
         required: true
 
@@ -53,11 +53,17 @@ jobs:
 
         run: |
 
+          echo "======================"
+
           echo "Build Project: $PROJECT"
 
-          ls Projects/$PROJECT
+          echo "======================"
+
+          ls -la Projects/$PROJECT
 
 
+
+      # 安装 Theos
 
       - name: Install Theos
 
@@ -65,17 +71,24 @@ jobs:
 
           rm -rf "$HOME/theos"
 
+
           git clone --recursive \
           https://github.com/theos/theos.git \
           "$HOME/theos"
+
 
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
 
 
+      # 安装 SDK
+
       - name: Install SDK
 
         run: |
+
+          rm -rf "$HOME/theos/sdks"
+
 
           mkdir -p "$HOME/theos/sdks"
 
@@ -86,6 +99,8 @@ jobs:
 
 
 
+      # ldid
+
       - name: Install Tools
 
         run: |
@@ -94,20 +109,28 @@ jobs:
 
 
 
+      # 准备插件文件
+
       - name: Prepare Project
 
         run: |
 
+          echo "Copy project files"
+
+
           cp Projects/$PROJECT/Tweak.xm ./Tweak.xm
+
 
           cp Projects/$PROJECT/config.json ./config.json
 
 
-          echo "===== Current Plugin ====="
+          echo "===== config ====="
 
           cat config.json
 
 
+
+      # 生成 Filter.plist control
 
       - name: Generate Config
 
@@ -118,11 +141,14 @@ jobs:
 
           ./Scripts/make_config.sh
 
+
           ./Scripts/make_filter.sh
 
 
 
-      - name: Build
+      # 编译
+
+      - name: Build Tweak
 
         run: |
 
@@ -131,23 +157,50 @@ jobs:
 
           make clean
 
+
           make FINALPACKAGE=1
 
 
 
-      - name: Output
+      # 查看输出
+
+      - name: Check Output
 
         run: |
 
-          mkdir output
+          echo "===== dylib ====="
 
 
-          cp .theos/obj/*.dylib output/
+          find . -name "*.dylib"
+
+
+          echo "===== deb ====="
+
+
+          find . -name "*.deb"
+
+
+
+      # 输出 dylib
+
+      - name: Package Output
+
+        run: |
+
+          mkdir -p output
+
+
+          cp .theos/obj/*.dylib output/ || true
+
+
+          cp .theos/obj/arm64e/*.dylib output/ || true
 
 
           ls -al output
 
 
+
+      # 上传
 
       - name: Upload dylib
 
@@ -156,6 +209,8 @@ jobs:
 
         with:
 
+
           name: ${{ env.PROJECT }}-dylib
+
 
           path: output/*.dylib
