@@ -16,7 +16,6 @@ on:
         default: "WoAiKaAdFree"
 
 
-
   push:
 
     branches:
@@ -55,7 +54,7 @@ jobs:
 
           echo "======================"
 
-          echo "Build Project: $PROJECT"
+          echo "BUILD PROJECT: $PROJECT"
 
           echo "======================"
 
@@ -63,43 +62,31 @@ jobs:
 
 
 
-      # 安装 Theos
-
       - name: Install Theos
 
         run: |
 
-          rm -rf "$HOME/theos"
-
-
           git clone --recursive \
           https://github.com/theos/theos.git \
-          "$HOME/theos"
+          $HOME/theos
 
 
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
 
 
-      # 安装 SDK
-
       - name: Install SDK
 
         run: |
 
-          rm -rf "$HOME/theos/sdks"
-
-
-          mkdir -p "$HOME/theos/sdks"
+          mkdir -p $HOME/theos/sdks
 
 
           git clone --depth=1 \
           https://github.com/theos/sdks.git \
-          "$HOME/theos/sdks"
+          $HOME/theos/sdks
 
 
-
-      # ldid
 
       - name: Install Tools
 
@@ -109,13 +96,17 @@ jobs:
 
 
 
-      # 准备插件文件
+      # ===============================
+      # 创建当前插件工程
+      # ===============================
 
       - name: Prepare Project
 
+
         run: |
 
-          echo "Copy project files"
+
+          echo "Prepare $PROJECT"
 
 
           cp Projects/$PROJECT/Tweak.xm ./Tweak.xm
@@ -124,17 +115,31 @@ jobs:
           cp Projects/$PROJECT/config.json ./config.json
 
 
-          echo "===== config ====="
+
+          echo "===== Tweak.xm ====="
+
+
+          head -20 Tweak.xm
+
+
+
+          echo "===== Config ====="
+
 
           cat config.json
 
 
 
-      # 生成 Filter.plist control
+      # ===============================
+      # 自动生成配置
+      # ===============================
+
 
       - name: Generate Config
 
+
         run: |
+
 
           chmod +x Scripts/*.sh
 
@@ -146,13 +151,25 @@ jobs:
 
 
 
-      # 编译
+          echo "===== Filter ====="
 
-      - name: Build Tweak
+
+          cat Filter.plist
+
+
+
+      # ===============================
+      # 编译
+      # ===============================
+
+
+      - name: Build
+
 
         run: |
 
-          export THEOS="$HOME/theos"
+
+          export THEOS=$HOME/theos
 
 
           make clean
@@ -162,47 +179,60 @@ jobs:
 
 
 
-      # 查看输出
+      # ===============================
+      # 检查
+      # ===============================
+
 
       - name: Check Output
 
+
         run: |
 
-          echo "===== dylib ====="
+
+          echo "===== DYLIB ====="
 
 
           find . -name "*.dylib"
 
 
-          echo "===== deb ====="
+
+          echo "===== PACKAGE ====="
 
 
           find . -name "*.deb"
 
 
 
-      # 输出 dylib
+      # ===============================
+      # 输出
+      # ===============================
 
-      - name: Package Output
+
+      - name: Package
+
 
         run: |
 
+
           mkdir -p output
+
 
 
           cp .theos/obj/*.dylib output/ || true
 
 
+
           cp .theos/obj/arm64e/*.dylib output/ || true
+
 
 
           ls -al output
 
 
 
-      # 上传
+      - name: Upload
 
-      - name: Upload dylib
 
         uses: actions/upload-artifact@v4
 
