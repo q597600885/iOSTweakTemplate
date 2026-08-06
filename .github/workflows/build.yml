@@ -180,11 +180,20 @@ jobs:
           ./Scripts/make_filter.sh
 
 
+          ./Scripts/make_control.sh
+
+
 
           echo "===== Filter.plist ====="
 
 
           cat Filter.plist
+
+
+          echo "===== control ====="
+
+
+          cat control
 
 
 
