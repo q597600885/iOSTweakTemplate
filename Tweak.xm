@@ -1,56 +1,67 @@
 #import <UIKit/UIKit.h>
 
-// 1. 深度拦截贴吧底层的开屏控制器与广告服务
-%hook TBSplashViewController
+%hook YDLaunchAnimationImageView
+
+- (id)initWithFrame:(CGRect)frame {
+    id origSelf = %orig;
+    if (origSelf) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIView *view = (UIView *)origSelf;
+            view.hidden = YES;
+            [view removeFromSuperview];
+        });
+    }
+    return origSelf;
+}
+
+%end
+
+%hook LaunchImageVC
+
 - (void)viewDidLoad {
     %orig;
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIViewController *vc = (UIViewController *)self;
         [vc.view removeFromSuperview];
-        if ([vc respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
+        if (vc.presentingViewController) {
             [vc dismissViewControllerAnimated:NO completion:nil];
         }
     });
 }
+
 %end
 
-%hook TBAdSplashViewController
-- (void)viewDidLoad {
-    %orig;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIViewController *vc = (UIViewController *)self;
-        [vc.view removeFromSuperview];
-        if ([vc respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
-            [vc dismissViewControllerAnimated:NO completion:nil];
-        }
-    });
-}
-%end
-
-// 2. 全局 UIWindow 监视并强力抹除任何广告、开屏视图
 %hook UIWindow
+
 - (void)makeKeyAndVisible {
     %orig;
-    UIWindow *window = (UIWindow *)self;
-    for (UIView *subview in window.subviews) {
-        NSString *className = NSStringFromClass([subview class]);
-        if ([className containsString:@"Splash"] || [className containsString:@"Ad"] || [className containsString:@"Advert"] || [className containsString:@"Launch"]) {
-            subview.hidden = YES;
-            [subview removeFromSuperview];
-        }
-    }
+    
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            
+            NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+            BOOL hasShown = [defaults boolForKey:@"AtourAdFree_Injected_Once"];
+            
+            if (!hasShown) {
+                [defaults setBool:YES forKey:@"AtourAdFree_Injected_Once"];
+                [defaults synchronize];
+                
+                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🎉 亚朵去广告" 
+                                                                                message:@"插件注入成功！开屏广告已永久去除，此提示仅出现一次。" 
+                                                                         preferredStyle:UIAlertControllerStyleAlert];
+                [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                
+                UIWindow *window = (UIWindow *)self;
+                UIViewController *rootVC = window.rootViewController;
+                while (rootVC.presentedViewController) {
+                    rootVC = rootVC.presentedViewController;
+                }
+                [rootVC presentViewController:alert animated:YES completion:nil];
+            }
+            
+        });
+    });
 }
-%end
 
-// 3. 拦截广告模型或广告曝光上报 (阻断广告请求逻辑)
-%hook TBBaseAdModel
-- (void)loadAdData {
-    // 拦截广告数据加载
-}
-%end
-
-%hook TBAdService
-- (void)requestAd {
-    // 拦截广告请求
-}
 %end
