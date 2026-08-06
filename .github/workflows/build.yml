@@ -13,7 +13,11 @@ on:
 
         required: true
 
-        default: "WoAiKaAdFree"
+        type: choice
+
+        options:
+
+          - WoAiKaAdFree
 
 
   push:
@@ -191,7 +195,7 @@ jobs:
 
 
       # ==========================
-      # Check
+      # Check Output
       # ==========================
 
       - name: Check Output
