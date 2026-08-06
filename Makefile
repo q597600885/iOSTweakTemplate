@@ -2,7 +2,7 @@ ARCHS = arm64 arm64e
 
 TARGET = iphone:clang:latest:15.0
 
-TWEAK_NAME := $(notdir $(shell pwd)/Projects/*)
+TWEAK_NAME := WoAiKaAdFree
 
 include $(THEOS)/makefiles/common.mk
 
