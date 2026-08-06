@@ -1,11 +1,15 @@
 #!/bin/bash
 
-CONFIG="Config/config.json"
+
+CONFIG="Projects/$PROJECT/config.json"
 
 
 if [ ! -f "$CONFIG" ]; then
-    echo "Config.json not found"
+
+    echo "❌ Config.json not found: $CONFIG"
+
     exit 1
+
 fi
 
 
@@ -29,5 +33,6 @@ VERSION = $VERSION
 EOF
 
 
-echo "Generated:"
+echo "===== Generated tweak_config.mk ====="
+
 cat tweak_config.mk
