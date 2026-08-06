@@ -1,7 +1,16 @@
 #!/bin/bash
 
 
-CONFIG="Config/config.json"
+CONFIG="Projects/$PROJECT/config.json"
+
+
+if [ ! -f "$CONFIG" ]; then
+
+    echo "❌ Config.json not found: $CONFIG"
+
+    exit 1
+
+fi
 
 
 NAME=$(python3 -c "import json;print(json.load(open('$CONFIG'))['name'])")
@@ -24,4 +33,6 @@ Version: $VERSION
 EOF
 
 
-echo "control generated"
+echo "===== control generated ====="
+
+cat control
