@@ -52,19 +52,27 @@ jobs:
 
         run: |
 
-          echo "======================"
+          echo "=============================="
 
-          echo "BUILD PROJECT: $PROJECT"
+          echo "Current Project: $PROJECT"
 
-          echo "======================"
+          echo "=============================="
+
 
           ls -la Projects/$PROJECT
 
 
 
+      # ==========================
+      # Install Theos
+      # ==========================
+
       - name: Install Theos
 
         run: |
+
+          rm -rf $HOME/theos
+
 
           git clone --recursive \
           https://github.com/theos/theos.git \
@@ -75,9 +83,16 @@ jobs:
 
 
 
+      # ==========================
+      # Install SDK
+      # ==========================
+
       - name: Install SDK
 
         run: |
+
+          rm -rf $HOME/theos/sdks
+
 
           mkdir -p $HOME/theos/sdks
 
@@ -88,6 +103,10 @@ jobs:
 
 
 
+      # ==========================
+      # Tools
+      # ==========================
+
       - name: Install Tools
 
         run: |
@@ -96,17 +115,15 @@ jobs:
 
 
 
-      # ===============================
-      # 创建当前插件工程
-      # ===============================
+      # ==========================
+      # Prepare Current Project
+      # ==========================
 
       - name: Prepare Project
 
-
         run: |
 
-
-          echo "Prepare $PROJECT"
+          echo "Copy project files"
 
 
           cp Projects/$PROJECT/Tweak.xm ./Tweak.xm
@@ -116,30 +133,27 @@ jobs:
 
 
 
-          echo "===== Tweak.xm ====="
+          echo "===== Current Tweak.xm ====="
 
 
-          head -20 Tweak.xm
+          head -50 Tweak.xm
 
 
 
-          echo "===== Config ====="
+          echo "===== Current Config ====="
 
 
           cat config.json
 
 
 
-      # ===============================
-      # 自动生成配置
-      # ===============================
-
+      # ==========================
+      # Generate plist/control
+      # ==========================
 
       - name: Generate Config
 
-
         run: |
-
 
           chmod +x Scripts/*.sh
 
@@ -151,23 +165,20 @@ jobs:
 
 
 
-          echo "===== Filter ====="
+          echo "===== Filter.plist ====="
 
 
           cat Filter.plist
 
 
 
-      # ===============================
-      # 编译
-      # ===============================
+      # ==========================
+      # Build
+      # ==========================
 
-
-      - name: Build
-
+      - name: Build Tweak
 
         run: |
-
 
           export THEOS=$HOME/theos
 
@@ -179,68 +190,66 @@ jobs:
 
 
 
-      # ===============================
-      # 检查
-      # ===============================
-
+      # ==========================
+      # Check
+      # ==========================
 
       - name: Check Output
 
-
         run: |
 
-
-          echo "===== DYLIB ====="
+          echo "===== dylib ====="
 
 
           find . -name "*.dylib"
 
 
 
-          echo "===== PACKAGE ====="
+          echo "===== deb ====="
 
 
           find . -name "*.deb"
 
 
 
-      # ===============================
-      # 输出
-      # ===============================
+      # ==========================
+      # Package
+      # ==========================
 
-
-      - name: Package
-
+      - name: Package Output
 
         run: |
-
 
           mkdir -p output
 
 
-
           cp .theos/obj/*.dylib output/ || true
 
+
+          cp .theos/obj/arm64/*.dylib output/ || true
 
 
           cp .theos/obj/arm64e/*.dylib output/ || true
 
 
 
+          echo "===== Output ====="
+
+
           ls -al output
 
 
 
-      - name: Upload
+      # ==========================
+      # Upload
+      # ==========================
 
+      - name: Upload dylib
 
         uses: actions/upload-artifact@v4
 
-
         with:
 
-
           name: ${{ env.PROJECT }}-dylib
-
 
           path: output/*.dylib
