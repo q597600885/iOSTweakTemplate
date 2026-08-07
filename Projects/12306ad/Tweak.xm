@@ -53,7 +53,7 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告终极完美切割 (动态保留垫片，剔除广告)
+// 3. 12306 首页 Banner 广告终极完美切割 (修复 keyWindow 编译报错)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
@@ -68,46 +68,39 @@
     if (self.scrollView) {
         self.scrollView.hidden = YES;
     }
-    // 抽掉底色，防止留下色块
     self.backgroundColor = [UIColor clearColor];
     
     // 动态计算目标高度：只保留顶部搜索栏的安全距离
     CGFloat targetHeight = 0;
     
-    // 方案 A：如果内部广告视图(scrollView)有 Y 轴偏移，这个偏移量通常就是精准的顶部防遮挡垫片高度
+    // 方案 A：如果内部广告视图(scrollView)有 Y 轴偏移，以此为准
     if (self.scrollView && self.scrollView.frame.origin.y > 40.0) {
         targetHeight = self.scrollView.frame.origin.y;
     } 
-    // 方案 B：如果拿不到，我们自动读取当前手机的刘海屏/状态栏高度 + 搜索栏标准高度进行智能兜底计算
+    // 方案 B：直接读取自身 window 属性，完美避开 UIApplication keyWindow 废弃警告
     else {
         CGFloat statusBarHeight = 20.0;
-        if (@available(iOS 11.0, *)) {
-            UIWindow *window = [UIApplication sharedApplication].keyWindow;
-            if (window.safeAreaInsets.top > 0) {
-                statusBarHeight = window.safeAreaInsets.top;
-            }
+        if (self.window && self.window.safeAreaInsets.top > 0) {
+            statusBarHeight = self.window.safeAreaInsets.top;
         }
         // 状态栏 + 搜索导航栏(44) + 恰到好处的阴影间距(约8)
         targetHeight = statusBarHeight + 44.0 + 8.0; 
     }
     
-    // 如果当前高度包含广告（比纯垫片高度大），则执行精准切割
+    // 如果当前高度包含广告，则执行精准切割
     if (self.frame.size.height > targetHeight + 10.0) {
         self.tag = 888; // 标记为已处理
         
-        // 1. 修改实际 Frame
         CGRect frame = self.frame;
         frame.size.height = targetHeight;
         self.frame = frame;
         
-        // 2. 修改 AutoLayout 约束（这一步最关键，防止滑动时乱跳）
         for (NSLayoutConstraint *constraint in self.constraints) {
             if (constraint.firstAttribute == NSLayoutAttributeHeight) {
                 constraint.constant = targetHeight;
             }
         }
         
-        // 3. 通知父容器重新平滑排版
         UIView *parent = self.superview;
         if (parent) {
             [parent setNeedsLayout];
@@ -133,7 +126,7 @@
 
 
 // ============================================================================
-// 4. UI 弹窗辅助函数 (仅首次提示一次)
+// 4. UI 弹窗辅助函数 (已包含严格的 pragma 压制，不影响编译)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
