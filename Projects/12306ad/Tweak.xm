@@ -12,14 +12,17 @@
 - (void)removeSpad;
 @end
 
+@interface MTBookTicketHomeTopADView : UIView
+@property (nonatomic, retain) NSArray *materialsList;
+@end
+
 
 // ============================================================================
-// 2. 12306 BonSplashAD 开屏广告拦截逻辑 (秒进 + 无卡顿)
+// 2. 12306 开屏广告拦截 (BonSplashAD)
 // ============================================================================
 
 %hook BonSplashAD
 
-// 强制标识当前没有显示开屏广告
 - (BOOL)isADShowing {
     return NO;
 }
@@ -28,7 +31,6 @@
     return NO;
 }
 
-// 拦截添加广告视图动作，直接触发原生的跳过/关闭逻辑
 - (void)addAdView {
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([self respondsToSelector:@selector(btnSkipClick)]) {
@@ -41,7 +43,6 @@
     });
 }
 
-// 万一进入展屏回调，瞬间触发跳过
 - (void)BeiZi_splashDidPresentScreen:(id)a0 {
     if ([self respondsToSelector:@selector(btnSkipClick)]) {
         [self btnSkipClick];
@@ -52,7 +53,38 @@
 
 
 // ============================================================================
-// 3. UI 弹窗辅助函数 (仅首次注入成功提示一次，点击确定后永不再弹)
+// 3. 12306 预订首页顶部 Banner 广告拦截 (MTBookTicketHomeTopADView)
+// ============================================================================
+
+%hook MTBookTicketHomeTopADView
+
+// 阻断素材加载：清空广告数据源
+- (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
+    %orig(nil, a1, a2);
+}
+
+// 阻断 UI 构建：传空数据
+- (void)creatADViewWithData:(id)a0 {
+    %orig(nil);
+}
+
+// 阻断定时器滚动，节省性能
+- (void)initAnimationScrollTimerWithDuration:(double)a0 {
+    return;
+}
+
+// 隐藏 View 实体，防止占位卡块
+- (void)didMoveToWindow {
+    %orig;
+    self.hidden = YES;
+    [self removeFromSuperview];
+}
+
+%end
+
+
+// ============================================================================
+// 4. UI 弹窗辅助函数 (仅首次提示一次)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -98,7 +130,6 @@ static void showInjectAlertIfNeeded(void) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *const kHasShownKey = @"HasShown12306AdBlockAlert_Key";
 
-    // 读取本地持久化标志：若已弹过窗则静默跳过
     if ([defaults boolForKey:kHasShownKey]) {
         return;
     }
@@ -108,13 +139,12 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"铁路 12306 去开屏广告插件已成功生效！"
+                                                                       message:@"12306 去开屏及首页 Banner 广告插件已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
                                                            style:UIAlertActionStyleDefault 
                                                          handler:^(UIAlertAction * _Nonnull action) {
-            // 点击确定后写入标记并同步保存
             [defaults setBool:YES forKey:kHasShownKey];
             [defaults synchronize];
         }];
@@ -126,7 +156,7 @@ static void showInjectAlertIfNeeded(void) {
 
 
 // ============================================================================
-// 4. Tweak 启动入口
+// 5. Tweak 入口
 // ============================================================================
 
 %ctor {
