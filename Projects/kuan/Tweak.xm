@@ -1,58 +1,101 @@
 #import <UIKit/UIKit.h>
 
-// 声明该 Class 继承自 UIView，让编译器识别 hidden 和 subviews 属性
+// 1. 声明必要的基类，解决编译属性找不到的问题
 @interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UIView
 @end
 
-// 假设还有其他涉及到的类或 Delegate 声明
-@protocol SplashAdDelegate <NSObject>
-- (void)splashAd:(id)splashAd didFailWithError:(NSError *)error;
-@end
-
-@interface SplashAdLoader : NSObject
-@property (nonatomic, weak) id<SplashAdDelegate> delegate;
+@interface CoolMarketFeedModel : NSObject
+@property (nonatomic, copy) NSString *entityTemplate;
+@property (nonatomic, assign) NSInteger isAd;
 @end
 
 
 // ==========================================
-// 1. 酷安/CoolMarket 列表广告 Cell 隐藏
+// 1. 列表 & 评论区广告 Cell 彻底消除
 // ==========================================
+
+// Hook 广告 Cell 的基类，从视图层级直接拉隐和把高度缩为 0
 %hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
 
 - (id)initWithFrame:(CGRect)frame {
     id origSelf = %orig;
     if (origSelf) {
-        // 强转为 UIView *，彻底规避类型找不到属性的问题
         UIView *view = (UIView *)origSelf;
         view.hidden = YES;
-        
-        // 遍历或清理子视图逻辑
-        for (UIView *subview in view.subviews) {
-            subview.hidden = YES;
-        }
+        view.alpha = 0.0;
+        view.frame = CGRectZero;
     }
     return origSelf;
 }
 
+// 阻止广告 Cell 再次展开布局
 - (void)layoutSubviews {
     %orig;
     UIView *view = (UIView *)self;
     view.hidden = YES;
+    view.frame = CGRectZero;
+}
+
+// 防空高度：如果 TableView/CollectionView 询问高度，直接返回 0
+- (double)cellHeight {
+    return 0.0;
 }
 
 %end
 
 
 // ==========================================
-// 2. 开屏广告失败回调模拟
+// 2. 评论区 / feed 广告数据源拦截 (数据层去广告)
 // ==========================================
-%hook SplashAdLoader
 
-- (void)loadAd {
+%hook CoolMarketFeedModel
+
+// 如果模型判断为广告，直接标记为非广告或模板置空
+- (BOOL)isFeedAd {
+    return NO;
+}
+
+- (BOOL)isAd {
+    return NO;
+}
+
+%end
+
+
+// ==========================================
+// 3. 酷安开屏广告全路径强行跳过
+// ==========================================
+
+// 拦截酷安开屏 AdView
+%hook CoolMarketSplashAdView
+
+- (id)initWithFrame:(CGRect)frame {
+    // 初始化直接隐藏并跳过
+    id origSelf = %orig;
+    if (origSelf) {
+        UIView *view = (UIView *)origSelf;
+        view.hidden = YES;
+        [view removeFromSuperview];
+    }
+    return origSelf;
+}
+
+%end
+
+// 拦截开屏广告控制器，强行触发“跳过/完成”回调
+%hook CoolMarketSplashViewController
+
+- (void)viewDidLoad {
     %orig;
-    // 模拟广告加载失败，自动跳过开屏
-    if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
-        [self.delegate splashAd:self didFailWithError:nil];
+    // 隐藏开屏 VC 的 view
+    UIViewController *vc = (UIViewController *)self;
+    vc.view.hidden = YES;
+    
+    // 尝试调用常见的跳过/结束方法
+    if ([self respondsToSelector:@selector(skipAd)]) {
+        [self performSelector:@selector(skipAd)];
+    } else if ([self respondsToSelector:@selector(dismissSplash)]) {
+        [self performSelector:@selector(dismissSplash)];
     }
 }
 
