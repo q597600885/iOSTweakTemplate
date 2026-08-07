@@ -1,78 +1,83 @@
 #import <UIKit/UIKit.h>
 
-// 核心原则：保留 %orig 让广告内部逻辑正常走完（避免 App 线程卡死或报错），但在视图或展示环节将其拦截/隐藏。
+// ==========================================
+// 1. 穿山甲（CSJ）开屏广告安全去广告 Hook
+// ==========================================
 
-%hook KsSplashAdLoader
+%hook CSJSplashAdLoader
 
-- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
-    NSLog(@"[AdBlocker] KsSplashAdLoader loadWithViewController called, let it load safely.");
-    %orig; // 走正常加载流程，防止主 App 发生广告超时等待
+- (void)loadAdWithSlot:(id)slot bouncers:(id)bouncers {
+    NSLog(@"[AdBlocker] CSJSplashAdLoader loadAdWithSlot called.");
+    %orig; // 保持正常加载，防止 App 发生超时卡死
 }
 
-- (void)showWithViewController:(id)a0 AdView:(UIView *)adView AdInteractionListener:(id)a2 {
-    NSLog(@"[AdBlocker] Intercepted KsSplashAdLoader show, hiding ad view.");
-    // 如果有广告视图，直接将其从父视图移除并隐藏，不让它显示出来
-    if ([adView isKindOfClass:[UIView class]]) {
-        [adView removeFromSuperview];
-        adView.hidden = YES;
-    }
-    // 注意：根据实际需要，这里也可以选择不调用 %orig，或者让其静默展示一个空的隐藏 View
-}
-
-%end
-
-
-%hook GdtSplashAdLoader
-
-- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+- (void)loadAdDataWithSlot:(id)slot {
+    NSLog(@"[AdBlocker] CSJSplashAdLoader loadAdDataWithSlot called.");
     %orig;
 }
 
-- (void)showWithViewController:(id)a0 AdView:(UIView *)adView AdInteractionListener:(id)a2 {
-    NSLog(@"[AdBlocker] Intercepted GdtSplashAdLoader show, hiding ad view.");
-    if ([adView isKindOfClass:[UIView class]]) {
-        [adView removeFromSuperview];
-        adView.hidden = YES;
-    }
-}
-
 %end
 
+%hook CSJSplashViewController
 
-%hook CsjSplashAdLoader
-
-- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+- (void)viewDidLoad {
     %orig;
-}
-
-- (void)showWithViewController:(id)a0 AdView:(UIView *)adView AdInteractionListener:(id)a2 {
-    NSLog(@"[AdBlocker] Intercepted CsjSplashAdLoader show, hiding ad view.");
-    if ([adView isKindOfClass:[UIView class]]) {
-        [adView removeFromSuperview];
-        adView.hidden = YES;
-    }
+    NSLog(@"[AdBlocker] CSJSplashViewController loaded, hiding and closing immediately.");
+    
+    // 视图加载后立即关闭开屏控制器，防止广告弹出
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if ([self respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
+            [self dismissViewControllerAnimated:NO completion:nil];
+        } else if (self.view) {
+            [self.view removeFromSuperview];
+        }
+    });
 }
 
 %end
 
+%hook CSJSplashView
 
-%hook BDSplashAdLoader
-
-- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+- (void)didMoveToWindow {
     %orig;
-}
-
-- (void)showWithViewController:(id)a0 AdView:(UIView *)adView AdInteractionListener:(id)a2 {
-    NSLog(@"[AdBlocker] Intercepted BDSplashAdLoader (Baidu) show, hiding ad view.");
-    if ([adView isKindOfClass:[UIView class]]) {
-        [adView removeFromSuperview];
-        adView.hidden = YES;
-    }
+    // 如果有漏网之鱼，当广告视图被加到窗口时直接移除并隐藏
+    [self removeFromSuperview];
+    self.hidden = YES;
+    NSLog(@"[AdBlocker] CSJSplashView removed from window.");
 }
 
 %end
 
+
+// ==========================================
+// 2. 注入成功弹窗提示（仅弹一次，验证是否生效）
+// ==========================================
 
 %ctor {
-    NSLog(@"[AdBlocker] Safe Ad-blocking tweak loaded successfully!");
+    NSLog(@"[AdBlocker] Ad-blocking tweak loaded successfully!");
+    
+    // 延迟 1.5 秒弹出提示，确保 App 已经完全启动、有可用的 UIWindow
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // 获取当前主窗口或最顶层的 ViewController
+        UIWindow *keyWindow = nil;
+        for (UIWindow *window in [UIApplication sharedApplication].windows) {
+            if (window.isKeyWindow) {
+                keyWindow = window;
+                break;
+            }
+        }
+        
+        UIViewController *rootVC = keyWindow.rootViewController;
+        while (rootVC.presentedViewController) {
+            rootVC = rootVC.presentedViewController;
+        }
+        
+        if (rootVC) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🎉 越狱插件提示"
+                                                                            message:@"AdBlocker 注入成功，穿山甲开屏广告已拦截！"
+                                                                     preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+            [rootVC presentViewController:alert animated:YES completion:nil];
+        }
+    });
 }
