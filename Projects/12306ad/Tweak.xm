@@ -18,7 +18,7 @@
 
 
 // ============================================================================
-// 2. 12306 开屏广告拦截 (BonSplashAD)
+// 2. 12306 开屏广告拦截 (BonSplashAD) —— 保持不变
 // ============================================================================
 
 %hook BonSplashAD
@@ -53,52 +53,33 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告精细化布局微调 (完美自然过渡)
+// 3. 12306 首页 Banner 广告拦截 (数据源欺骗，触发官方无广告排版)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
 
-// 阻断广告素材渲染
+// 策略 1: 拦截数据加载。无论服务器下发什么，我们都强行传 nil 给原方法
 - (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
     %orig(nil, a1, a2);
 }
 
+// 策略 2: 拦截视图构建。告诉构建器没有广告数据，触发原生折叠
 - (void)creatADViewWithData:(id)a0 {
     %orig(nil);
 }
 
+// 策略 3: 接管数据源 Getter，防止 App 其他地方读取到旧缓存
+- (NSArray *)materialsList {
+    return nil;
+}
+
+// 策略 4: 彻底禁止广告轮播定时器启动，极致省电
 - (void)initAnimationScrollTimerWithDuration:(double)a0 {
     return;
 }
 
-// 动态微调视图尺寸与约束，保留 12pt 的自然安全间距
-- (void)didMoveToWindow {
-    %orig;
-    
-    // 隐藏广告位内部的子元素（图片、滚动条等）
-    for (UIView *subview in self.subviews) {
-        subview.hidden = YES;
-    }
-    
-    // 调整自身 Height 保持在 12pt（刚好作为顶部搜索栏与车票卡片之间的舒适间距）
-    CGRect frame = self.frame;
-    frame.size.height = 12.0;
-    self.frame = frame;
-    
-    // 动态修改 AutoLayout 高度约束为 12.0pt
-    for (NSLayoutConstraint *constraint in self.constraints) {
-        if (constraint.firstAttribute == NSLayoutAttributeHeight) {
-            constraint.constant = 12.0;
-        }
-    }
-    
-    // 促使父容器重新平滑计算布局
-    UIView *parent = self.superview;
-    if (parent) {
-        [parent setNeedsLayout];
-        [parent layoutIfNeeded];
-    }
-}
+// ⚠️ 注意：这里彻底去掉了 didMoveToWindow 的 UI 强行修改逻辑
+// 把排版工作交还给 12306 原生引擎！
 
 %end
 
@@ -159,7 +140,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"12306 去开屏及首页 Banner 插件已生效！"
+                                                                       message:@"12306 终极版去广告（官方原生排版）已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
