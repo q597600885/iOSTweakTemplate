@@ -1,89 +1,98 @@
 #import <UIKit/UIKit.h>
+#import <substrate.h>
 
 // ==========================================
-// 1. 拦截 TopOn 广告加载器 (源头拦截)[span_3](start_span)[span_3](end_span)
+// 1. C 函数定义 (用于替换 Swift 广告加载器回调)
 // ==========================================
-%hook "CoolMarket.GeneralEntityListFeedAdvertisementLoader_Topon"
 
-- (void)didFinishLoadingADWithPlacementID:(id)placementID {
-    // 拦截成功加载，转为触发失败回调
+// TopOn 广告加载拦截
+static void (*orig_Topon_didFinish)(id self, SEL _cmd, id placementID);
+static void new_Topon_didFinish(id self, SEL _cmd, id placementID) {
     id slf = self;
     if ([slf respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         [slf didFailToLoadADWithPlacementID:placementID error:nil];
     }
 }
 
-%end
-
-
-// ==========================================
-// 2. 拦截穿山甲 / 自渲染广告加载器 (源头拦截)[span_4](start_span)[span_4](end_span)
-// ==========================================
-%hook "CoolMarket.GeneralEntityListFeedAdvertisementLoader_GMSelfDraw"
-
-- (void)nativeAdsManagerSuccessToLoad:(id)adsManager nativeAds:(id)nativeAds {
-    // 拦截成功加载，转为触发失败回调
+// 穿山甲 / GMSelfDraw 广告加载拦截
+static void (*orig_GM_success)(id self, SEL _cmd, id manager, id ads);
+static void new_GM_success(id self, SEL _cmd, id manager, id ads) {
     id slf = self;
     if ([slf respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
-        [slf nativeAdsManager:adsManager didFailWithError:nil];
+        [slf nativeAdsManager:manager didFailWithError:nil];
     }
 }
 
-%end
+// 广告 Cell 尺寸强制归零 (防止 CollectionView 留空)
+static CGSize (*orig_Cell_sizeThatFits)(id self, SEL _cmd, CGSize size);
+static CGSize new_Cell_sizeThatFits(id self, SEL _cmd, CGSize size) {
+    return CGSizeZero;
+}
+
+// Admin Info 广告 Cell 尺寸强制归零
+static CGSize (*orig_AdminCell_sizeThatFits)(id self, SEL _cmd, CGSize size);
+static CGSize new_AdminCell_sizeThatFits(id self, SEL _cmd, CGSize size) {
+    return CGSizeZero;
+}
 
 
 // ==========================================
-// 3. 拦截信息流广告 Cell (UI 视图强行折叠与隐藏)[span_5](start_span)[span_5](end_span)
+// 2. 运行时入口：%ctor 动态抓取 Swift 类并进行 Hook
 // ==========================================
-%hook "CoolMarket.GeneralEntityListFeedAdvertisementCellBaseV4"
 
-- (id)initWithFrame:(CGRect)frame {
-    id origSelf = %orig;
-    if (origSelf) {
-        UIView *view = (UIView *)origSelf;
-        view.hidden = YES;
-        view.alpha = 0.0;
+%ctor {
+    @autoreleasepool {
+        // 1. Hook TopOn 广告加载器
+        Class toponCls = objc_getClass("CoolMarket.GeneralEntityListFeedAdvertisementLoader_Topon");
+        if (toponCls) {
+            MSHookMessageEx(
+                toponCls, 
+                @selector(didFinishLoadingADWithPlacementID:), 
+                (IMP)&new_Topon_didFinish, 
+                (IMP*)&orig_Topon_didFinish
+            );
+        }
+
+        // 2. Hook GMSelfDraw 广告加载器
+        Class gmCls = objc_getClass("CoolMarket.GeneralEntityListFeedAdvertisementLoader_GMSelfDraw");
+        if (gmCls) {
+            MSHookMessageEx(
+                gmCls, 
+                @selector(nativeAdsManagerSuccessToLoad:nativeAds:), 
+                (IMP)&new_GM_success, 
+                (IMP*)&orig_GM_success
+            );
+        }
+
+        // 3. Hook 广告 Cell 尺寸
+        Class cellCls = objc_getClass("CoolMarket.GeneralEntityListFeedAdvertisementCellBaseV4");
+        if (cellCls) {
+            MSHookMessageEx(
+                cellCls, 
+                @selector(sizeThatFits:), 
+                (IMP)&new_Cell_sizeThatFits, 
+                (IMP*)&orig_Cell_sizeThatFits
+            );
+        }
+
+        // 4. Hook Admin Cell 尺寸
+        Class adminCellCls = objc_getClass("CoolMarket.GeneralEntityListFeedAdvertisementAdminInfoCell");
+        if (adminCellCls) {
+            MSHookMessageEx(
+                adminCellCls, 
+                @selector(sizeThatFits:), 
+                (IMP)&new_AdminCell_sizeThatFits, 
+                (IMP*)&orig_AdminCell_sizeThatFits
+            );
+        }
     }
-    return origSelf;
 }
-
-// 核心：强行返回 0 尺寸，防止 CollectionView 留下空白占位[span_6](start_span)[span_6](end_span)
-- (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeZero;
-}
-
-- (void)layoutSubviews {
-    %orig;
-    UIView *view = (UIView *)self;
-    view.hidden = YES;
-    view.frame = CGRectZero;
-}
-
-%end
 
 
 // ==========================================
-// 4. 拦截 AdminInfo 广告 Cell[span_7](start_span)[span_7](end_span)
+// 3. 标准 ObjC 开屏跳过逻辑
 // ==========================================
-%hook "CoolMarket.GeneralEntityListFeedAdvertisementAdminInfoCell"
 
-- (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeZero;
-}
-
-- (void)layoutSubviews {
-    %orig;
-    UIView *view = (UIView *)self;
-    view.hidden = YES;
-    view.frame = CGRectZero;
-}
-
-%end
-
-
-// ==========================================
-// 5. 保留开屏跳过逻辑
-// ==========================================
 %hook CoolMarketSplashViewController
 
 - (void)viewDidLoad {
