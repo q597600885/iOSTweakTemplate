@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明
+// 1. 前置接口声明 (避免 Clang 编译器 Forward Declaration 报错)
 // ============================================================================
 
 @interface BonSplashAD : NSObject
@@ -53,18 +53,12 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告拦截 (消除空白区域)
+// 3. 12306 首页 Banner 广告拦截 (纯净无广告 + 恢复正常布局比例)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
 
-// 1. 初始化时直接将其 Frame 改为 0 高度
-- (id)initWithFrame:(CGRect)frame animationScrollDuration:(double)duration {
-    frame.size.height = 0;
-    return %orig(frame, duration);
-}
-
-// 2. 阻断数据加载
+// 阻断素材加载：只清空广告图片，保留原始间距占位，防止元素挤压重叠
 - (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
     %orig(nil, a1, a2);
 }
@@ -73,34 +67,9 @@
     %orig(nil);
 }
 
+// 停掉后台轮播定时器，节省资源
 - (void)initAnimationScrollTimerWithDuration:(double)a0 {
     return;
-}
-
-// 3. 挂载到父视图时，彻底折叠高度并通知父视图重新布局
-- (void)didMoveToWindow {
-    %orig;
-    
-    self.hidden = YES;
-    
-    // 将自身 Height 强行置 0
-    CGRect frame = self.frame;
-    frame.size.height = 0;
-    self.frame = frame;
-    
-    // 如果使用了 AutoLayout 约束，强行修改 Height 约束为 0
-    for (NSLayoutConstraint *constraint in self.constraints) {
-        if (constraint.firstAttribute == NSLayoutAttributeHeight) {
-            constraint.constant = 0;
-        }
-    }
-    
-    // 强制通知父视图重新计算布局
-    UIView *parent = self.superview;
-    if (parent) {
-        [parent setNeedsLayout];
-        [parent layoutIfNeeded];
-    }
 }
 
 %end
@@ -162,7 +131,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"12306 去开屏及无缝首页 Banner 插件已生效！"
+                                                                       message:@"12306 去开屏及首页 Banner 广告插件已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
