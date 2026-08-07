@@ -1,50 +1,143 @@
 #import <UIKit/UIKit.h>
 
-// 1. 穿山甲（CSJ）开屏广告安全去广告 Hook
-%hook CSJSplashViewController
+// ----------------------------------------------------------------------------
+// 1. ABUSplashAdLoader (GroMore 聚合调度层)
+// ----------------------------------------------------------------------------
+%hook ABUSplashAdLoader
 
-- (void)viewDidLoad {
-    %orig;
-    NSLog(@"[AdBlocker] CSJSplashViewController loaded, hiding and closing immediately.");
-    
-    // 使用显式类型转换，彻底避开 forward declaration 报错
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIViewController *vc = (UIViewController *)self;
-        if ([vc respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
-            [vc dismissViewControllerAnimated:NO completion:nil];
-        }
-    });
+// 声明所有适配器无效
+- (BOOL)isValidAdapter:(id)a0 mediaSlotConfig:(id)a1 {
+    return NO;
+}
+
+// 阻止发起媒体广告加载
+- (void)loadMediaAdWithAdapter:(id)a0 mediaSlotConfig:(id)a1 params:(id)a2 {
+    // 拦截不执行原方法
 }
 
 %end
 
+
+// ----------------------------------------------------------------------------
+// 2. KsSplashAdLoader (快手开屏广告 Loader)
+// ----------------------------------------------------------------------------
+%hook KsSplashAdLoader
+
+- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+    // 如果存在 Listener 且响应失败回调，主动发送失败通知
+    if (a2 && [a2 respondsToSelector:@selector(onAdLoadFailed:)]) {
+        NSError *error = [NSError errorWithDomain:@"com.adblock.ks" code:-1001 userInfo:@{NSLocalizedDescriptionKey: @"Ad Blocked"}];
+        [(id)a2 performSelector:@selector(onAdLoadFailed:) withObject:error];
+    } else if (a2 && [a2 respondsToSelector:@selector(splashAdDidLoadFail:error:)]) {
+        NSError *error = [NSError errorWithDomain:@"com.adblock.ks" code:-1001 userInfo:@{NSLocalizedDescriptionKey: @"Ad Blocked"}];
+        [(id)a2 performSelector:@selector(splashAdDidLoadFail:error:) withObject:self withObject:error];
+    }
+    // 不执行原 %orig;
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 AdInteractionListener:(id)a2 {
+    // 拦截展示
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 Extra:(id)a2 AdInteractionListener:(id)a3 {
+    // 拦截展示
+}
+
+%end
+
+
+// ----------------------------------------------------------------------------
+// 3. GdtSplashAdLoader (腾讯/广点通开屏广告 Loader)
+// ----------------------------------------------------------------------------
+%hook GdtSplashAdLoader
+
+- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+    // 主动回调失败
+    NSError *error = [NSError errorWithDomain:@"com.adblock.gdt" code:-1001 userInfo:nil];
+    [self splashAdFailToPresent:self.splashAd withError:error];
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 AdInteractionListener:(id)a2 {
+    // 拦截展示
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 Extra:(id)a2 AdInteractionListener:(id)a3 {
+    // 拦截展示
+}
+
+- (void)splashAdDidLoad:(id)a0 {
+    // 拦截成功回调
+}
+
+%end
+
+
+// ----------------------------------------------------------------------------
+// 4. CsjSplashAdLoader (字节/穿山甲开屏广告 Loader)
+// ----------------------------------------------------------------------------
+%hook CsjSplashAdLoader
+
+- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+    NSError *error = [NSError errorWithDomain:@"com.adblock.csj" code:-1001 userInfo:nil];
+    [self splashAdLoadFail:self.splashAd error:error];
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 AdInteractionListener:(id)a2 {
+    // 拦截展示
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 Extra:(id)a2 AdInteractionListener:(id)a3 {
+    // 拦截展示
+}
+
+- (void)splashAdLoadSuccess:(id)a0 {
+    // 拦截成功回调
+}
+
+%end
+
+
+// ----------------------------------------------------------------------------
+// 5. BDSplashAdLoader (百度开屏广告 Loader)
+// ----------------------------------------------------------------------------
+%hook BDSplashAdLoader
+
+- (void)loadWithViewController:(id)a0 AdSlot:(id)a1 AdLoadListener:(id)a2 {
+    [self splashAdLoadFailCode:@"-1001" message:@"Ad Blocked" splashAd:self.splash];
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 AdInteractionListener:(id)a2 {
+    // 拦截展示
+}
+
+- (void)showWithViewController:(id)a0 AdView:(id)a1 Extra:(id)a2 AdInteractionListener:(id)a3 {
+    // 拦截展示
+}
+
+- (void)splashAdLoadSuccess:(id)a0 {
+    // 拦截成功回调
+}
+
+%end
+
+
+// ----------------------------------------------------------------------------
+// 6. CSJSplashAdLoader (底层/混淆开屏请求器)
+// ----------------------------------------------------------------------------
 %hook CSJSplashAdLoader
 
-- (void)loadAdWithSlot:(id)slot bouncers:(id)bouncers {
-    NSLog(@"[AdBlocker] CSJSplashAdLoader loadAdWithSlot called.");
-    %orig;
+- (void)In_LogoSdk:(id)a0 slot:(id)a1 progress:(id /* block */)a2 success:(id /* block */)a3 failure:(id /* block */)a4 {
+    if (a4) {
+        NSError *error = [NSError errorWithDomain:@"com.adblock.csj.core" code:-1001 userInfo:nil];
+        a4(error);
+    }
 }
 
-- (void)loadAdDataWithSlot:(id)slot {
-    NSLog(@"[AdBlocker] CSJSplashAdLoader loadAdDataWithSlot called.");
-    %orig;
-}
-
-%end
-
-%hook CSJSplashView
-
-- (void)didMoveToWindow {
-    %orig;
-    UIView *adView = (UIView *)self;
-    [adView removeFromSuperview];
-    adView.hidden = YES;
-    NSLog(@"[AdBlocker] CSJSplashView removed from window.");
+- (void)Res_AsLazy:(id)a0 slot:(id)a1 loadState:(id)a2 success:(id /* block */)a3 failure:(id /* block */)a4 {
+    if (a4) {
+        NSError *error = [NSError errorWithDomain:@"com.adblock.csj.core" code:-1001 userInfo:nil];
+        a4(error);
+    }
 }
 
 %end
-
-// 2. 插件加载入口（已移除有警告的 deprecated api，保证 100% 编译通过）
-%ctor {
-    NSLog(@"[AdBlocker] Ad-blocking tweak loaded successfully!");
-}
