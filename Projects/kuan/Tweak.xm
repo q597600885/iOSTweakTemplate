@@ -46,23 +46,39 @@
 
 
 // ============================================================================
-// 3. 酷安帖子/评论区/信息流广告 Cell 精准折叠 (V4 广告单元)
+// 3. 酷安帖子/评论区广告 Cell 折叠 (安全防闪退版)
 // ============================================================================
 
-%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
-
-// 1. 告诉 CollectionView 布局引擎该广告 Cell 尺寸为 0，实现无缝折叠
-- (CGSize)sizeThatFits:(CGSize)size {
+%hookf(CGSize, sizeThatFits$, id self, SEL _cmd, CGSize size) {
     return CGSizeZero;
 }
 
-// 2. 隐藏视图实体，防止残存空白
+// 针对 UICollectionViewCell 专用的安全自适应尺寸方法
+%hook UICollectionViewCell
+
+- (UICollectionViewLayoutAttributes *)preferredLayoutAttributesFittingAttributes:(UICollectionViewLayoutAttributes *)layoutAttributes {
+    UICollectionViewLayoutAttributes *attributes = %orig(layoutAttributes);
+    
+    // 动态判断是否为广告 Cell
+    NSString *className = NSStringFromClass([self class]);
+    if ([className containsString:@"FeedAdvertisementCell"]) {
+        attributes.frame = CGRectMake(attributes.frame.origin.x, attributes.frame.origin.y, attributes.frame.size.width, 0);
+        self.hidden = YES;
+    }
+    
+    return attributes;
+}
+
 - (void)layoutSubviews {
     %orig;
-    self.hidden = YES;
-    self.frame = CGRectZero;
-    for (UIView *subview in self.subviews) {
-        subview.hidden = YES;
+    
+    NSString *className = NSStringFromClass([self class]);
+    if ([className containsString:@"FeedAdvertisementCell"]) {
+        self.hidden = YES;
+        // 仅隐藏子视图，绝不在 layoutSubviews 里修改 self.frame，防止触发 UICollectionView 崩溃
+        for (UIView *subview in self.subviews) {
+            subview.hidden = YES;
+        }
     }
 }
 
@@ -125,7 +141,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安开屏及帖子/评论区广告去除已生效！"
+                                                                       message:@"酷安去广告增强插件已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
