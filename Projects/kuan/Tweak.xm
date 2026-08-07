@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明 (补全父类继承关系，修复 Clang 编译报错)
+// 1. 前置接口声明
 // ============================================================================
 
 @protocol BUMSplashAdDelegate <NSObject>
@@ -19,18 +19,17 @@
 @property (nonatomic, weak) id delegate;
 @end
 
-// 💡 补全 UIKit 父类声明，让 Clang 识别 hidden/subviews 属性
 @interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
 @end
 
 
 // ============================================================================
-// 2. 酷安 TXAd 广告引擎拦截 (解决 5分钟热启动开屏)
+// 2. 酷安冷/热启动开屏广告拦截 (稳定验证版)
 // ============================================================================
 
+// 拦截 TXAd 引擎 (热启动/5分钟定时开屏)
 %hook TXAdSplashManager
 
-// 阻断热启动广告数据请求
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
     if (block) {
         block(nil);
@@ -43,23 +42,17 @@
     }
 }
 
-// 彻底屏蔽后台预加载逻辑
 - (void)preGetSplashAdData {
     return;
 }
 
-// 阻断开屏视图渲染
 - (id)renderSplashTemplateWithAdModel:(id)model config:(id)config {
     return nil;
 }
 
 %end
 
-
-// ============================================================================
-// 3. 酷安 GroMore (GMSplashAd) & AnyThink (ABUSplashAd) 聚合开屏拦截
-// ============================================================================
-
+// 拦截 GroMore 聚合 SDK (冷启动开屏)
 %hook GMSplashAd
 
 - (void)loadAdData {
@@ -102,26 +95,16 @@
 
 
 // ============================================================================
-// 4. 酷安帖子/评论区广告 Cell 折叠
+// 3. 酷安评论区/信息流广告 Cell 稳妥隐形 (安全防闪退版)
 // ============================================================================
 
 %hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
 
-- (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeZero;
-}
-
-- (UICollectionViewLayoutAttributes *)preferredLayoutAttributesFittingAttributes:(UICollectionViewLayoutAttributes *)layoutAttributes {
-    UICollectionViewLayoutAttributes *attributes = %orig(layoutAttributes);
-    CGRect frame = attributes.frame;
-    frame.size.height = 0;
-    attributes.frame = frame;
-    return attributes;
-}
-
+// 绝不强改 LayoutAttributes 约束，仅静默隐藏视图，彻底防闪退
 - (void)layoutSubviews {
     %orig;
     self.hidden = YES;
+    self.contentView.hidden = YES;
     for (UIView *subview in self.subviews) {
         subview.hidden = YES;
     }
@@ -131,7 +114,7 @@
 
 
 // ============================================================================
-// 5. UI 弹窗辅助函数 (仅首次提示一次)
+// 4. UI 弹窗辅助函数 (仅首次提示一次)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -186,7 +169,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安冷/热启动及评论区广告去处已全效生效！"
+                                                                       message:@"酷安冷/热开屏去广告已完美生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
@@ -203,7 +186,7 @@ static void showInjectAlertIfNeeded(void) {
 
 
 // ============================================================================
-// 6. Tweak 入口
+// 5. Tweak 入口
 // ============================================================================
 
 %ctor {
