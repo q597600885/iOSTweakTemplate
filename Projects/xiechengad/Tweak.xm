@@ -35,7 +35,7 @@
 
 
 // ============================================================================
-// 3. UI 弹窗辅助函数 (已解决 iOS 13 弃用警告与 Unused 报错)
+// 3. UI 弹窗辅助函数 (解决警告并支持单次弹窗)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -77,8 +77,16 @@ static UIViewController *getTopViewController(void) {
     return topViewController;
 }
 
-static void showInjectAlert(void) {
-    // 延迟 1.2 秒等待主界面加载完毕后再弹窗
+static void showInjectAlertIfNeeded(void) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *const kHasShownKey = @"HasShownXieChengAdBlockAlert_Key";
+
+    // 如果已经弹过窗，直接返回不再处理
+    if ([defaults boolForKey:kHasShownKey]) {
+        return;
+    }
+
+    // 延迟 1.2 秒等待主界面挂载完成后弹窗
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
@@ -87,16 +95,22 @@ static void showInjectAlert(void) {
                                                                        message:@"携程去开屏广告插件已成功注入！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
-        [alert addAction:okAction];
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
+                                                           style:UIAlertActionStyleDefault 
+                                                         handler:^(UIAlertAction * _Nonnull action) {
+            // 用户点击确定后写入标记并同步保存
+            [defaults setBool:YES forKey:kHasShownKey];
+            [defaults synchronize];
+        }];
 
+        [alert addAction:okAction];
         [topVC presentViewController:alert animated:YES completion:nil];
     });
 }
 
 
 // ============================================================================
-// 4. Tweak 构造入口 (注册启动通知触发弹窗)
+// 4. Tweak 构造入口
 // ============================================================================
 
 %ctor {
@@ -104,6 +118,6 @@ static void showInjectAlert(void) {
                                                       object:nil
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        showInjectAlert();
+        showInjectAlertIfNeeded();
     }];
 }
