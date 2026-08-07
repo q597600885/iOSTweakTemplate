@@ -24,14 +24,51 @@
 - (BOOL)isAdValid;
 @end
 
+// 声明广告 Loader 类 (Swift 类映射)
+@interface CoolMarket_GeneralEntityListFeedAdvertisementLoader_Topon : NSObject
+- (void)didFailToLoadADWithPlacementID:(id)a0 error:(id)a1;
+@end
+
+@interface CoolMarket_GeneralEntityListFeedAdvertisementLoader_GMSelfDraw : NSObject
+- (void)nativeAdsManager:(id)a0 didFailWithError:(id)a1;
+@end
+
 
 // ============================================================================
-// 2. 酷安热启动/定时开屏广告拦截 (TXAd 引擎)
+// 2. 酷安信息流/评论区广告 Loader 源头切断 (数据层点杀，绝对不闪退)
+// ============================================================================
+
+// 1. 切断 GroMore 原生自渲染广告 (穿山甲)
+%hook CoolMarket_GeneralEntityListFeedAdvertisementLoader_GMSelfDraw
+
+- (void)nativeAdsManagerSuccessToLoad:(id)a0 nativeAds:(id)a1 {
+    // 当穿山甲广告加载成功时，故意欺骗酷安，给它抛出一个失败回调，不把广告加进列表数据源
+    if ([self respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+        [self nativeAdsManager:a0 didFailWithError:nil];
+    }
+}
+
+%end
+
+// 2. 切断 Topon 聚合原生广告
+%hook CoolMarket_GeneralEntityListFeedAdvertisementLoader_Topon
+
+- (void)didFinishLoadingADWithPlacementID:(id)a0 {
+    // 收到加载成功通知时，直接转化为失败回调
+    if ([self respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
+        [self didFailToLoadADWithPlacementID:a0 error:nil];
+    }
+}
+
+%end
+
+
+// ============================================================================
+// 3. 酷安热启动/定时开屏广告拦截 (TXAd 引擎)
 // ============================================================================
 
 %hook TXAdSplashManager
 
-// 阻断热启动广告数据请求
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
     if (block) {
         block(nil);
@@ -44,12 +81,10 @@
     }
 }
 
-// 屏蔽切后台时的预加载逻辑
 - (void)preGetSplashAdData {
     return;
 }
 
-// 阻断开屏视图渲染
 - (id)renderSplashTemplateWithAdModel:(id)model config:(id)config {
     return nil;
 }
@@ -58,7 +93,7 @@
 
 
 // ============================================================================
-// 3. 酷安冷启动开屏广告拦截 (GroMore / AnyThink 聚合 SDK)
+// 4. 酷安冷启动开屏广告拦截 (GroMore / AnyThink 聚合 SDK)
 // ============================================================================
 
 %hook GMSplashAd
@@ -103,7 +138,7 @@
 
 
 // ============================================================================
-// 4. UI 弹窗辅助函数 (仅首次提示一次)
+// 5. UI 弹窗辅助函数 (仅首次提示一次)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -158,7 +193,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安冷/热启动去开屏广告已完美生效！"
+                                                                       message:@"酷安开屏及评论区信息流去广告已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
@@ -175,7 +210,7 @@ static void showInjectAlertIfNeeded(void) {
 
 
 // ============================================================================
-// 5. Tweak 入口
+// 6. Tweak 入口
 // ============================================================================
 
 %ctor {
