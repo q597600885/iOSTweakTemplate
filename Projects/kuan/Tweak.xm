@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明
+// 1. 前置接口声明 (补全父类继承关系，修复 Clang 编译报错)
 // ============================================================================
 
 @protocol BUMSplashAdDelegate <NSObject>
@@ -17,6 +17,10 @@
 
 @interface TXAdSplashManager : NSObject
 @property (nonatomic, weak) id delegate;
+@end
+
+// 💡 补全 UIKit 父类声明，让 Clang 识别 hidden/subviews 属性
+@interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
 @end
 
 
@@ -53,7 +57,7 @@
 
 
 // ============================================================================
-// 3. 酷安 GroMore (GMSplashAd) & AnyThink (ATSplashManager) 聚合开屏拦截
+// 3. 酷安 GroMore (GMSplashAd) & AnyThink (ABUSplashAd) 聚合开屏拦截
 // ============================================================================
 
 %hook GMSplashAd
