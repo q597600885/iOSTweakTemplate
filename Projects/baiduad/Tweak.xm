@@ -1,7 +1,21 @@
 #import <UIKit/UIKit.h>
 
+// 1. 完整声明前置类及属性，防止编译器报错
+@interface CSJSplashAdLoader : NSObject
+@end
+
+@interface CSJSplashViewController : UIViewController
+@property (nonatomic, strong) UIView *view;
+- (void)dismissViewControllerAnimated:(BOOL)flag completion:(void (^)(void))completion;
+@end
+
+@interface CSJSplashView : UIView
+@property (nonatomic, assign) BOOL hidden;
+- (void)removeFromSuperview;
+@end
+
 // ==========================================
-// 1. 穿山甲（CSJ）开屏广告安全去广告 Hook
+// 2. 穿山甲（CSJ）开屏广告安全去广告 Hook
 // ==========================================
 
 %hook CSJSplashAdLoader
@@ -50,7 +64,7 @@
 
 
 // ==========================================
-// 2. 注入成功弹窗提示（仅弹一次，验证是否生效）
+// 3. 注入成功弹窗提示（兼容 iOS 15+ 窗口获取，无编译警告）
 // ==========================================
 
 %ctor {
@@ -58,12 +72,29 @@
     
     // 延迟 1.5 秒弹出提示，确保 App 已经完全启动、有可用的 UIWindow
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // 获取当前主窗口或最顶层的 ViewController
         UIWindow *keyWindow = nil;
-        for (UIWindow *window in [UIApplication sharedApplication].windows) {
-            if (window.isKeyWindow) {
-                keyWindow = window;
-                break;
+        
+        // 兼容 iOS 13+ / iOS 15+ 的 UIWindowScene 获取方式，消除编译警告
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    for (UIWindow *window in scene.windows) {
+                        if (window.isKeyWindow) {
+                            keyWindow = window;
+                            break;
+                        }
+                    }
+                }
+                if (keyWindow) break;
+            }
+        }
+        
+        if (!keyWindow) {
+            for (UIWindow *window in [UIApplication sharedApplication].windows) {
+                if (window.isKeyWindow) {
+                    keyWindow = window;
+                    break;
+                }
             }
         }
         
