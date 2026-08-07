@@ -1,54 +1,75 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明 (避免 Clang 编译器 Forward Declaration 报错)
+// 1. 动态拦截控制器层开屏 (针对 UIViewController)
 // ============================================================================
 
-@interface CMAdvertModel : NSObject
-@property (nonatomic, retain) NSString *imageUrl;
-@property (nonatomic, retain) NSString *smallImageUrl;
-@property (nonatomic, retain) NSString *actionUrl;
-@property (nonatomic, retain) NSString *linkUrl;
-@end
+%hook UIViewController
 
-
-// ============================================================================
-// 2. 中国移动 CMAdvertModel 广告数据模型拦截
-// ============================================================================
-
-%hook CMAdvertModel
-
-// 拦截并清空广告图片 URL，UI 拿不到图片资源会自动取消渲染
-- (NSString *)imageUrl {
-    return nil;
-}
-
-- (NSString *)smallImageUrl {
-    return nil;
-}
-
-// 清空各类变体广告图片字段 (vImage3 ~ vImage8)
-- (NSString *)vImage3 { return nil; }
-- (NSString *)vImage4 { return nil; }
-- (NSString *)vImage5 { return nil; }
-- (NSString *)vImage6 { return nil; }
-- (NSString *)vImage7 { return nil; }
-- (NSString *)vImage8 { return nil; }
-
-// 清空广告跳转链接，防止用户误触
-- (NSString *)actionUrl {
-    return nil;
-}
-
-- (NSString *)linkUrl {
-    return nil;
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    
+    NSString *className = NSStringFromClass([self class]);
+    
+    // 匹配中国移动自研开屏控制器的常见命名特征
+    if ([className containsString:@"Splash"] || 
+        [className containsString:@"LaunchAd"] || 
+        [className containsString:@"CMStartAd"] || 
+        [className containsString:@"CMAdvertView"]) {
+        
+        // 过滤系统原生类 (如苹果账号登录页 PSAppleIDSplashViewController)
+        if (![className hasPrefix:@"PS"] && ![className hasPrefix:@"AK"] && ![className hasPrefix:@"UI"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                // 强制关闭开屏控制器
+                [self dismissViewControllerAnimated:NO completion:nil];
+            });
+        }
+    }
 }
 
 %end
 
 
 // ============================================================================
-// 3. UI 弹窗辅助函数 (仅首次注入成功后提示一次)
+// 2. 动态拦截视图层开屏 (针对直接挂载到 Window 上的 UIView)
+// ============================================================================
+
+%hook UIView
+
+- (void)didMoveToWindow {
+    %orig;
+    
+    if (self.window) {
+        NSString *className = NSStringFromClass([self class]);
+        
+        // 匹配挂载在窗口上的开屏广告 View
+        if ([className containsString:@"CMSplash"] || 
+            [className containsString:@"CMLaunchAd"] || 
+            [className containsString:@"CMStartAd"] || 
+            [className containsString:@"CMAdvertView"]) {
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                // 1. 尝试触发跳过方法
+                if ([self respondsToSelector:@selector(skipAction:)]) {
+                    [self performSelector:@selector(skipAction:) withObject:nil];
+                } else if ([self respondsToSelector:@selector(skipButtonTapped:)]) {
+                    [self performSelector:@selector(skipButtonTapped:) withObject:nil];
+                } else if ([self respondsToSelector:@selector(closeSplash)]) {
+                    [self performSelector:@selector(closeSplash)];
+                } else {
+                    // 2. 兜底方案：直接从父视图移除
+                    [self removeFromSuperview];
+                }
+            });
+        }
+    }
+}
+
+%end
+
+
+// ============================================================================
+// 3. 首次注入成功提示框 (仅首次提示一次)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -94,7 +115,6 @@ static void showInjectAlertIfNeeded(void) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *const kHasShownKey = @"HasShownChinaMobileAdBlockAlert_Key";
 
-    // 读取本地持久化标志：若已弹过窗则静默跳过
     if ([defaults boolForKey:kHasShownKey]) {
         return;
     }
@@ -104,13 +124,12 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"中国移动去广告插件已成功注入！"
+                                                                       message:@"中国移动内部开屏去广告插件已成功注入！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
                                                            style:UIAlertActionStyleDefault 
                                                          handler:^(UIAlertAction * _Nonnull action) {
-            // 点击确定后写入标记并同步保存
             [defaults setBool:YES forKey:kHasShownKey];
             [defaults synchronize];
         }];
@@ -122,7 +141,7 @@ static void showInjectAlertIfNeeded(void) {
 
 
 // ============================================================================
-// 4. Tweak 构造入口
+// 4. Tweak 入口
 // ============================================================================
 
 %ctor {
