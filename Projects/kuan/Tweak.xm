@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明 (避免 Clang 编译器报错)
+// 1. 前置接口声明
 // ============================================================================
 
 @protocol BUMSplashAdDelegate <NSObject>
@@ -17,12 +17,11 @@
 
 
 // ============================================================================
-// 2. 酷安 GroMore 聚合开屏广告 (GMSplashAd) 精准拦截
+// 2. 酷安开屏广告拦截 (GMSplashAd)
 // ============================================================================
 
 %hook GMSplashAd
 
-// 1. 阻断广告数据请求，模拟失败回调促使酷安秒进主页
 - (void)loadAdData {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
         [self.delegate splashAd:(id)self didFailWithError:nil];
@@ -35,7 +34,6 @@
     }
 }
 
-// 2. 兜底方案：拦截开屏 View 展示渲染
 - (void)showSplashViewInRootViewController:(id)a0 {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAdDidClose:withType:)]) {
         [self.delegate splashAdDidClose:(id)self withType:0];
@@ -48,7 +46,31 @@
 
 
 // ============================================================================
-// 3. UI 弹窗辅助函数 (仅首次提示一次)
+// 3. 酷安帖子/评论区/信息流广告 Cell 精准折叠 (V4 广告单元)
+// ============================================================================
+
+%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
+
+// 1. 告诉 CollectionView 布局引擎该广告 Cell 尺寸为 0，实现无缝折叠
+- (CGSize)sizeThatFits:(CGSize)size {
+    return CGSizeZero;
+}
+
+// 2. 隐藏视图实体，防止残存空白
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+    self.frame = CGRectZero;
+    for (UIView *subview in self.subviews) {
+        subview.hidden = YES;
+    }
+}
+
+%end
+
+
+// ============================================================================
+// 4. UI 弹窗辅助函数 (仅首次提示一次)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -103,7 +125,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安 GroMore 聚合开屏去广告插件已生效！"
+                                                                       message:@"酷安开屏及帖子/评论区广告去除已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
@@ -120,7 +142,7 @@ static void showInjectAlertIfNeeded(void) {
 
 
 // ============================================================================
-// 4. Tweak 入口
+// 5. Tweak 入口
 // ============================================================================
 
 %ctor {
