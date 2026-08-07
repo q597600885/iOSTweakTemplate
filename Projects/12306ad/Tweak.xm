@@ -1,11 +1,11 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 💡 顶栏安全高度微调参数 (单位: pt)
-// 140.0 可以完美把“火车票”卡片推到搜索框下方。
-// 如果觉得留白想再小一点可改为 135.0；觉得太挤可改为 145.0
+// 💡 顶栏安全高度参数 (单位: pt)
+// 175.0 可以把购票卡片整体往下拉，刚好避开悬浮搜索框。
+// 如果编译后发现偏下，可稍微调小至 170.0；若还微卡搜索框，可调大至 180.0
 // ============================================================================
-#define kCustomTopHeight 140.0
+#define kCustomTopHeight 175.0
 
 
 // ============================================================================
@@ -61,7 +61,7 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告精细化裁剪 (固定自然安全高度)
+// 3. 12306 首页 Banner 广告精细化裁剪 (调大高度，彻底解决卡片上浮遮挡)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
@@ -69,7 +69,7 @@
 - (void)layoutSubviews {
     %orig;
     
-    // 隐藏内部真正的广告 View，抽掉背景
+    // 隐藏内部真正的广告容器，抽掉背景底色
     if (self.scrollView) {
         self.scrollView.hidden = YES;
     }
@@ -77,7 +77,7 @@
     
     CGFloat targetHeight = kCustomTopHeight;
     
-    // 只要高度不等于目标安全高度，就强行重置
+    // 强制重置 Frame 与 AutoLayout 约束
     if (fabs(self.frame.size.height - targetHeight) > 1.0) {
         
         // 1. 修改 Frame 高度
@@ -85,14 +85,14 @@
         frame.size.height = targetHeight;
         self.frame = frame;
         
-        // 2. 强制同步修改 AutoLayout 约束
+        // 2. 修改 AutoLayout 约束
         for (NSLayoutConstraint *constraint in self.constraints) {
             if (constraint.firstAttribute == NSLayoutAttributeHeight) {
                 constraint.constant = targetHeight;
             }
         }
         
-        // 3. 驱动父容器平滑重绘布局
+        // 3. 驱动父视图重新计算布局
         UIView *parent = self.superview;
         if (parent) {
             [parent setNeedsLayout];
@@ -101,7 +101,7 @@
     }
 }
 
-// 拦截网络广告数据请求
+// 彻底拦截广告数据网络请求
 - (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
     %orig(nil, a1, a2);
 }
@@ -173,7 +173,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"12306 终极精修版已生效！"
+                                                                       message:@"12306 去广告插件已更新生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
