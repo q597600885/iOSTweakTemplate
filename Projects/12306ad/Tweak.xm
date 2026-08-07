@@ -1,6 +1,14 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
+// 💡 顶栏安全高度微调参数 (单位: pt)
+// 140.0 可以完美把“火车票”卡片推到搜索框下方。
+// 如果觉得留白想再小一点可改为 135.0；觉得太挤可改为 145.0
+// ============================================================================
+#define kCustomTopHeight 140.0
+
+
+// ============================================================================
 // 1. 前置接口声明
 // ============================================================================
 
@@ -53,7 +61,7 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告终极完美切割 (修复 keyWindow 编译报错)
+// 3. 12306 首页 Banner 广告精细化裁剪 (固定自然安全高度)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
@@ -61,46 +69,30 @@
 - (void)layoutSubviews {
     %orig;
     
-    // 防止循环触发布局重绘
-    if (self.tag == 888) return;
-    
-    // 隐藏内部的广告容器
+    // 隐藏内部真正的广告 View，抽掉背景
     if (self.scrollView) {
         self.scrollView.hidden = YES;
     }
     self.backgroundColor = [UIColor clearColor];
     
-    // 动态计算目标高度：只保留顶部搜索栏的安全距离
-    CGFloat targetHeight = 0;
+    CGFloat targetHeight = kCustomTopHeight;
     
-    // 方案 A：如果内部广告视图(scrollView)有 Y 轴偏移，以此为准
-    if (self.scrollView && self.scrollView.frame.origin.y > 40.0) {
-        targetHeight = self.scrollView.frame.origin.y;
-    } 
-    // 方案 B：直接读取自身 window 属性，完美避开 UIApplication keyWindow 废弃警告
-    else {
-        CGFloat statusBarHeight = 20.0;
-        if (self.window && self.window.safeAreaInsets.top > 0) {
-            statusBarHeight = self.window.safeAreaInsets.top;
-        }
-        // 状态栏 + 搜索导航栏(44) + 恰到好处的阴影间距(约8)
-        targetHeight = statusBarHeight + 44.0 + 8.0; 
-    }
-    
-    // 如果当前高度包含广告，则执行精准切割
-    if (self.frame.size.height > targetHeight + 10.0) {
-        self.tag = 888; // 标记为已处理
+    // 只要高度不等于目标安全高度，就强行重置
+    if (fabs(self.frame.size.height - targetHeight) > 1.0) {
         
+        // 1. 修改 Frame 高度
         CGRect frame = self.frame;
         frame.size.height = targetHeight;
         self.frame = frame;
         
+        // 2. 强制同步修改 AutoLayout 约束
         for (NSLayoutConstraint *constraint in self.constraints) {
             if (constraint.firstAttribute == NSLayoutAttributeHeight) {
                 constraint.constant = targetHeight;
             }
         }
         
+        // 3. 驱动父容器平滑重绘布局
         UIView *parent = self.superview;
         if (parent) {
             [parent setNeedsLayout];
@@ -109,7 +101,7 @@
     }
 }
 
-// 彻底拦截数据网络请求，节省流量和内存
+// 拦截网络广告数据请求
 - (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
     %orig(nil, a1, a2);
 }
@@ -126,7 +118,7 @@
 
 
 // ============================================================================
-// 4. UI 弹窗辅助函数 (已包含严格的 pragma 压制，不影响编译)
+// 4. UI 弹窗辅助函数
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -181,7 +173,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"12306 终极版去广告已生效，首页排版已完美修复！"
+                                                                       message:@"12306 终极精修版已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
