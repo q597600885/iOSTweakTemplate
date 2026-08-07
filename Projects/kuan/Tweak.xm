@@ -19,12 +19,16 @@
 @property (nonatomic, weak) id delegate;
 @end
 
+@interface ABUNativeAdView : UIView
+- (void)removeFromSuperview;
+@end
+
 @interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
 @end
 
 
 // ============================================================================
-// 2. 酷安冷/热启动开屏广告拦截 (稳定验证版)
+// 2. 酷安冷/热启动开屏广告拦截 (100% 稳定防闪退)
 // ============================================================================
 
 // 拦截 TXAd 引擎 (热启动/5分钟定时开屏)
@@ -95,12 +99,40 @@
 
 
 // ============================================================================
-// 3. 酷安评论区/信息流广告 Cell 稳妥隐形 (安全防闪退版)
+// 3. 酷安原生信息流广告卡片拦截 (ABUNativeAdView 精准消除)
+// ============================================================================
+
+%hook ABUNativeAdView
+
+// 1. 告诉 SDK 广告尚未准备好
+- (BOOL)isReady {
+    return NO;
+}
+
+// 2. 阻断广告卡片 UI 渲染
+- (void)render {
+    return;
+}
+
+// 3. 阻止挂载到父视图，若挂载直接从界面移除并隐藏
+- (void)willMoveToSuperview:(UIView *)newSuperview {
+    if (newSuperview) {
+        self.hidden = YES;
+        [self removeFromSuperview];
+    } else {
+        %orig;
+    }
+}
+
+%end
+
+
+// ============================================================================
+// 4. 酷安评论区/信息流广告 Cell 容器隐形 (安全层)
 // ============================================================================
 
 %hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
 
-// 绝不强改 LayoutAttributes 约束，仅静默隐藏视图，彻底防闪退
 - (void)layoutSubviews {
     %orig;
     self.hidden = YES;
@@ -114,7 +146,7 @@
 
 
 // ============================================================================
-// 4. UI 弹窗辅助函数 (仅首次提示一次)
+// 5. UI 弹窗辅助函数 (仅首次提示一次)
 // ============================================================================
 
 static UIViewController *getTopViewController(void) {
@@ -168,32 +200,4 @@ static void showInjectAlertIfNeeded(void) {
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
 
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安冷/热开屏去广告已完美生效！"
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
-                                                           style:UIAlertActionStyleDefault 
-                                                         handler:^(UIAlertAction * _Nonnull action) {
-            [defaults setBool:YES forKey:kHasShownKey];
-            [defaults synchronize];
-        }];
-
-        [alert addAction:okAction];
-        [topVC presentViewController:alert animated:YES completion:nil];
-    });
-}
-
-
-// ============================================================================
-// 5. Tweak 入口
-// ============================================================================
-
-%ctor {
-    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
-                                                      object:nil
-                                                       queue:[NSOperationQueue mainQueue]
-                                                  usingBlock:^(NSNotification * _Nonnull note) {
-        showInjectAlertIfNeeded();
-    }];
-}
+        UIAlertController *alert
