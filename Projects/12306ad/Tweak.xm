@@ -18,7 +18,7 @@
 
 
 // ============================================================================
-// 2. 12306 开屏广告拦截 (BonSplashAD)
+// 2. 12306 开屏广告拦截 (保持不变)
 // ============================================================================
 
 %hook BonSplashAD
@@ -53,51 +53,78 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告拦截 (完美折叠无留白版)
+// 3. 12306 首页 Banner 广告终极完美切割 (动态保留垫片，剔除广告)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
 
-// 策略 1: 数据源欺骗。传空数组 @[] 触发原生无广告判定，绝不传 nil
-- (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
-    %orig(@[], a1, a2);
-}
-
-- (void)creatADViewWithData:(id)a0 {
-    %orig(@[]);
-}
-
-- (NSArray *)materialsList {
-    return @[];
-}
-
-- (id)filterADDataWithArriveStationCode:(id)a0 isChangeVoiceOverStatus:(BOOL)a1 {
-    return @[];
-}
-
-// 策略 2: 告诉 AutoLayout 布局引擎，该视图内容为空，请自然折叠
-- (CGSize)intrinsicContentSize {
-    return CGSizeZero;
-}
-
-- (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeZero;
-}
-
-// 策略 3: 清理所有视觉残留
-- (void)didMoveToWindow {
+- (void)layoutSubviews {
     %orig;
     
-    // 隐藏内部的滚动广告容器
+    // 防止循环触发布局重绘
+    if (self.tag == 888) return;
+    
+    // 隐藏内部的广告容器
     if (self.scrollView) {
         self.scrollView.hidden = YES;
     }
-    
-    // 抽掉白色的背景底色，防止留下色块
+    // 抽掉底色，防止留下色块
     self.backgroundColor = [UIColor clearColor];
+    
+    // 动态计算目标高度：只保留顶部搜索栏的安全距离
+    CGFloat targetHeight = 0;
+    
+    // 方案 A：如果内部广告视图(scrollView)有 Y 轴偏移，这个偏移量通常就是精准的顶部防遮挡垫片高度
+    if (self.scrollView && self.scrollView.frame.origin.y > 40.0) {
+        targetHeight = self.scrollView.frame.origin.y;
+    } 
+    // 方案 B：如果拿不到，我们自动读取当前手机的刘海屏/状态栏高度 + 搜索栏标准高度进行智能兜底计算
+    else {
+        CGFloat statusBarHeight = 20.0;
+        if (@available(iOS 11.0, *)) {
+            UIWindow *window = [UIApplication sharedApplication].keyWindow;
+            if (window.safeAreaInsets.top > 0) {
+                statusBarHeight = window.safeAreaInsets.top;
+            }
+        }
+        // 状态栏 + 搜索导航栏(44) + 恰到好处的阴影间距(约8)
+        targetHeight = statusBarHeight + 44.0 + 8.0; 
+    }
+    
+    // 如果当前高度包含广告（比纯垫片高度大），则执行精准切割
+    if (self.frame.size.height > targetHeight + 10.0) {
+        self.tag = 888; // 标记为已处理
+        
+        // 1. 修改实际 Frame
+        CGRect frame = self.frame;
+        frame.size.height = targetHeight;
+        self.frame = frame;
+        
+        // 2. 修改 AutoLayout 约束（这一步最关键，防止滑动时乱跳）
+        for (NSLayoutConstraint *constraint in self.constraints) {
+            if (constraint.firstAttribute == NSLayoutAttributeHeight) {
+                constraint.constant = targetHeight;
+            }
+        }
+        
+        // 3. 通知父容器重新平滑排版
+        UIView *parent = self.superview;
+        if (parent) {
+            [parent setNeedsLayout];
+            [parent layoutIfNeeded];
+        }
+    }
 }
 
-// 策略 4: 节约性能，彻底干掉轮播器定时器
+// 彻底拦截数据网络请求，节省流量和内存
+- (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
+    %orig(nil, a1, a2);
+}
+
+- (void)creatADViewWithData:(id)a0 {
+    %orig(nil);
+}
+
 - (void)initAnimationScrollTimerWithDuration:(double)a0 {
     return;
 }
@@ -161,7 +188,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"12306 终极原生折叠版已生效，尽情享受纯净首页！"
+                                                                       message:@"12306 终极版去广告已生效，首页排版已完美修复！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
