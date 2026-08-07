@@ -2,24 +2,37 @@
 #import <substrate.h>
 
 // ==========================================
-// 1. C 函数定义 (用于替换 Swift 广告加载器回调)
+// 1. 声明 Protocol 协议，解决 Clang "no known instance method" 报错
+// ==========================================
+
+@protocol ATAdLoadingDelegate <NSObject>
+- (void)didFailToLoadADWithPlacementID:(id)placementID error:(id)error;
+@end
+
+@protocol BUMNativeAdsManagerDelegate <NSObject>
+- (void)nativeAdsManager:(id)manager didFailWithError:(id)error;
+@end
+
+
+// ==========================================
+// 2. C 函数定义 (用于替换 Swift 广告加载器回调)
 // ==========================================
 
 // TopOn 广告加载拦截
 static void (*orig_Topon_didFinish)(id self, SEL _cmd, id placementID);
 static void new_Topon_didFinish(id self, SEL _cmd, id placementID) {
-    id slf = self;
-    if ([slf respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
-        [slf didFailToLoadADWithPlacementID:placementID error:nil];
+    id<ATAdLoadingDelegate> delegate = (id<ATAdLoadingDelegate>)self;
+    if ([delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
+        [delegate didFailToLoadADWithPlacementID:placementID error:nil];
     }
 }
 
 // 穿山甲 / GMSelfDraw 广告加载拦截
 static void (*orig_GM_success)(id self, SEL _cmd, id manager, id ads);
 static void new_GM_success(id self, SEL _cmd, id manager, id ads) {
-    id slf = self;
-    if ([slf respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
-        [slf nativeAdsManager:manager didFailWithError:nil];
+    id<BUMNativeAdsManagerDelegate> delegate = (id<BUMNativeAdsManagerDelegate>)self;
+    if ([delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+        [delegate nativeAdsManager:manager didFailWithError:nil];
     }
 }
 
@@ -37,7 +50,7 @@ static CGSize new_AdminCell_sizeThatFits(id self, SEL _cmd, CGSize size) {
 
 
 // ==========================================
-// 2. 运行时入口：%ctor 动态抓取 Swift 类并进行 Hook
+// 3. 运行时入口：%ctor 动态抓取 Swift 类并进行 Hook
 // ==========================================
 
 %ctor {
@@ -90,7 +103,7 @@ static CGSize new_AdminCell_sizeThatFits(id self, SEL _cmd, CGSize size) {
 
 
 // ==========================================
-// 3. 标准 ObjC 开屏跳过逻辑
+// 4. 标准 ObjC 开屏跳过逻辑
 // ==========================================
 
 %hook CoolMarketSplashViewController
