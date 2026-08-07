@@ -1,67 +1,59 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 动态拦截控制器层开屏 (针对 UIViewController)
+// 1. 递归工具函数：扫描 View 及其子视图中是否包含“跳过”文字
 // ============================================================================
+static BOOL hasSkipTextInView(UIView *view) {
+    if (!view) return NO;
 
-%hook UIViewController
-
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    
-    NSString *className = NSStringFromClass([self class]);
-    
-    // 匹配中国移动自研开屏控制器的常见命名特征
-    if ([className containsString:@"Splash"] || 
-        [className containsString:@"LaunchAd"] || 
-        [className containsString:@"CMStartAd"] || 
-        [className containsString:@"CMAdvertView"]) {
-        
-        // 过滤系统原生类 (如苹果账号登录页 PSAppleIDSplashViewController)
-        if (![className hasPrefix:@"PS"] && ![className hasPrefix:@"AK"] && ![className hasPrefix:@"UI"]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // 强制关闭开屏控制器
-                [self dismissViewControllerAnimated:NO completion:nil];
-            });
+    // 检查 UILabel 的文本
+    if ([view isKindOfClass:[UILabel class]]) {
+        UILabel *label = (UILabel *)view;
+        if (label.text && [label.text containsString:@"跳过"]) {
+            return YES;
         }
     }
-}
+    // 检查 UIButton 的标题
+    else if ([view isKindOfClass:[UIButton class]]) {
+        UIButton *button = (UIButton *)view;
+        if (button.currentTitle && [button.currentTitle containsString:@"跳过"]) {
+            return YES;
+        }
+    }
 
-%end
+    // 递归遍历所有子视图
+    for (UIView *subview in view.subviews) {
+        if (hasSkipTextInView(subview)) {
+            return YES;
+        }
+    }
+    return NO;
+}
 
 
 // ============================================================================
-// 2. 动态拦截视图层开屏 (针对直接挂载到 Window 上的 UIView)
+// 2. Hook UIView：全局扫描包含“跳过”按钮的开屏 View 并彻底移除
 // ============================================================================
 
 %hook UIView
 
 - (void)didMoveToWindow {
     %orig;
-    
+
     if (self.window) {
-        NSString *className = NSStringFromClass([self class]);
-        
-        // 匹配挂载在窗口上的开屏广告 View
-        if ([className containsString:@"CMSplash"] || 
-            [className containsString:@"CMLaunchAd"] || 
-            [className containsString:@"CMStartAd"] || 
-            [className containsString:@"CMAdvertView"]) {
-            
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // 1. 尝试触发跳过方法
-                if ([self respondsToSelector:@selector(skipAction:)]) {
-                    [self performSelector:@selector(skipAction:) withObject:nil];
-                } else if ([self respondsToSelector:@selector(skipButtonTapped:)]) {
-                    [self performSelector:@selector(skipButtonTapped:) withObject:nil];
-                } else if ([self respondsToSelector:@selector(closeSplash)]) {
-                    [self performSelector:@selector(closeSplash)];
-                } else {
-                    // 2. 兜底方案：直接从父视图移除
-                    [self removeFromSuperview];
-                }
-            });
-        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // 只要发现当前 View 包含“跳过”字样
+            if (hasSkipTextInView(self)) {
+                NSString *clsName = NSStringFromClass([self class]);
+                
+                // 1. 立即隐藏并彻底移除开屏 View
+                self.hidden = YES;
+                [self removeFromSuperview];
+
+                // 2. 在控制台打印，方便调试
+                NSLog(@"[AdBlock] 成功捕获并移除中国移动开屏广告 View，真实类名为: %@", clsName);
+            }
+        });
     }
 }
 
@@ -69,86 +61,25 @@
 
 
 // ============================================================================
-// 3. 首次注入成功提示框 (仅首次提示一次)
+// 3. 保证 100% 弹出注入成功提示（Hook 首个展示的 ViewController）
 // ============================================================================
 
-static UIViewController *getTopViewController(void) {
-    __block UIWindow *keyWindow = nil;
-    
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    if (@available(iOS 13.0, *)) {
-        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
-                UIWindowScene *windowScene = (UIWindowScene *)scene;
-                for (UIWindow *window in windowScene.windows) {
-                    if (window.isKeyWindow) {
-                        keyWindow = window;
-                        break;
-                    }
-                }
-            }
-            if (keyWindow) break;
-        }
-    }
-    
-    if (!keyWindow) {
-        keyWindow = [UIApplication sharedApplication].keyWindow;
-    }
-#pragma clang diagnostic pop
+%hook UIViewController
 
-    UIViewController *topViewController = keyWindow.rootViewController;
-    while (topViewController.presentedViewController) {
-        topViewController = topViewController.presentedViewController;
-    }
-    
-    if ([topViewController isKindOfClass:[UINavigationController class]]) {
-        topViewController = [(UINavigationController *)topViewController visibleViewController];
-    } else if ([topViewController isKindOfClass:[UITabBarController class]]) {
-        topViewController = [(UITabBarController *)topViewController selectedViewController];
-    }
-    
-    return topViewController;
-}
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
 
-static void showInjectAlertIfNeeded(void) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSString *const kHasShownKey = @"HasShownChinaMobileAdBlockAlert_Key";
-
-    if ([defaults boolForKey:kHasShownKey]) {
-        return;
-    }
-
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIViewController *topVC = getTopViewController();
-        if (!topVC) return;
-
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"中国移动内部开屏去广告插件已成功注入！"
+                                                                       message:@"中国移动插件已顺利注入！\n动态开屏拦截器已开启。"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
-                                                           style:UIAlertActionStyleDefault 
-                                                         handler:^(UIAlertAction * _Nonnull action) {
-            [defaults setBool:YES forKey:kHasShownKey];
-            [defaults synchronize];
-        }];
-
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"好的" style:UIAlertActionStyleDefault handler:nil];
         [alert addAction:okAction];
-        [topVC presentViewController:alert animated:YES completion:nil];
+
+        [self presentViewController:alert animated:YES completion:nil];
     });
 }
 
-
-// ============================================================================
-// 4. Tweak 入口
-// ============================================================================
-
-%ctor {
-    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
-                                                      object:nil
-                                                       queue:[NSOperationQueue mainQueue]
-                                                  usingBlock:^(NSNotification * _Nonnull note) {
-        showInjectAlertIfNeeded();
-    }];
-}
+%end
