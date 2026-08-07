@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明 (修正语法与闭合结构)
+// 1. 前置接口声明
 // ============================================================================
 
 @protocol BUMSplashAdDelegate <NSObject>
@@ -24,17 +24,14 @@
 - (BOOL)isAdValid;
 @end
 
-@interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
-@end
-
 
 // ============================================================================
-// 2. 酷安冷/热启动开屏广告拦截 (稳定验证版)
+// 2. 酷安热启动/定时开屏广告拦截 (TXAd 引擎)
 // ============================================================================
 
-// 拦截 TXAd 引擎 (热启动/5分钟定时开屏)
 %hook TXAdSplashManager
 
+// 阻断热启动广告数据请求
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
     if (block) {
         block(nil);
@@ -47,17 +44,23 @@
     }
 }
 
+// 屏蔽切后台时的预加载逻辑
 - (void)preGetSplashAdData {
     return;
 }
 
+// 阻断开屏视图渲染
 - (id)renderSplashTemplateWithAdModel:(id)model config:(id)config {
     return nil;
 }
 
 %end
 
-// 拦截 GroMore 聚合 SDK (冷启动开屏)
+
+// ============================================================================
+// 3. 酷安冷启动开屏广告拦截 (GroMore / AnyThink 聚合 SDK)
+// ============================================================================
+
 %hook GMSplashAd
 
 - (void)loadAdData {
@@ -94,24 +97,6 @@
 
 - (BOOL)isAdValid {
     return NO;
-}
-
-%end
-
-
-// ============================================================================
-// 3. 酷安评论区/信息流广告 Cell 稳妥隐形 (安全防闪退版)
-// ============================================================================
-
-%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
-
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES;
-    self.contentView.hidden = YES;
-    for (UIView *subview in self.subviews) {
-        subview.hidden = YES;
-    }
 }
 
 %end
@@ -173,7 +158,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安去广告插件已成功生效！"
+                                                                       message:@"酷安冷/热启动去开屏广告已完美生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
