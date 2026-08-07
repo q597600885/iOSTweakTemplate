@@ -1,85 +1,132 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 递归工具函数：扫描 View 及其子视图中是否包含“跳过”文字
+// 1. 前置接口声明 (告知编译器 CMStartViewController 的方法，防止报错)
 // ============================================================================
-static BOOL hasSkipTextInView(UIView *view) {
-    if (!view) return NO;
 
-    // 检查 UILabel 的文本
-    if ([view isKindOfClass:[UILabel class]]) {
-        UILabel *label = (UILabel *)view;
-        if (label.text && [label.text containsString:@"跳过"]) {
-            return YES;
-        }
-    }
-    // 检查 UIButton 的标题
-    else if ([view isKindOfClass:[UIButton class]]) {
-        UIButton *button = (UIButton *)view;
-        if (button.currentTitle && [button.currentTitle containsString:@"跳过"]) {
-            return YES;
-        }
-    }
+@interface CMStartViewController : UIViewController
+@property (nonatomic) BOOL isOpenScreenAdvertising;
+- (BOOL)isNeedSkipStartAd;
+- (void)skipStartViewAndEnterMainPage;
+- (void)skipPressed:(id)sender;
+@end
 
-    // 递归遍历所有子视图
-    for (UIView *subview in view.subviews) {
-        if (hasSkipTextInView(subview)) {
-            return YES;
-        }
-    }
+
+// ============================================================================
+// 2. 中国移动 CMStartViewController 精准开屏拦截 (秒过 + 防闪退)
+// ============================================================================
+
+%hook CMStartViewController
+
+// 强制标识需要跳过开屏广告
+- (BOOL)isNeedSkipStartAd {
+    return YES;
+}
+
+// 强制关闭开屏广告开关
+- (BOOL)isOpenScreenAdvertising {
     return NO;
 }
 
-
-// ============================================================================
-// 2. Hook UIView：全局扫描包含“跳过”按钮的开屏 View 并彻底移除
-// ============================================================================
-
-%hook UIView
-
-- (void)didMoveToWindow {
+// 控制器加载完毕后，在下一帧直接触发原生“跳过并进入主页”
+- (void)viewDidLoad {
     %orig;
-
-    if (self.window) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // 只要发现当前 View 包含“跳过”字样
-            if (hasSkipTextInView(self)) {
-                NSString *clsName = NSStringFromClass([self class]);
-                
-                // 1. 立即隐藏并彻底移除开屏 View
-                self.hidden = YES;
-                [self removeFromSuperview];
-
-                // 2. 在控制台打印，方便调试
-                NSLog(@"[AdBlock] 成功捕获并移除中国移动开屏广告 View，真实类名为: %@", clsName);
-            }
-        });
-    }
-}
-
-%end
-
-
-// ============================================================================
-// 3. 保证 100% 弹出注入成功提示（Hook 首个展示的 ViewController）
-// ============================================================================
-
-%hook UIViewController
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"中国移动插件已顺利注入！\n动态开屏拦截器已开启。"
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"好的" style:UIAlertActionStyleDefault handler:nil];
-        [alert addAction:okAction];
-
-        [self presentViewController:alert animated:YES completion:nil];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([self respondsToSelector:@selector(skipStartViewAndEnterMainPage)]) {
+            [self skipStartViewAndEnterMainPage];
+        } else if ([self respondsToSelector:@selector(skipPressed:)]) {
+            [self skipPressed:nil];
+        }
     });
 }
 
 %end
+
+
+// ============================================================================
+// 3. 首次注入成功提示框 (仅首次安装提示一次，确定后永不再弹)
+// ============================================================================
+
+static UIViewController *getTopViewController(void) {
+    __block UIWindow *keyWindow = nil;
+    
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                for (UIWindow *window in windowScene.windows) {
+                    if (window.isKeyWindow) {
+                        keyWindow = window;
+                        break;
+                    }
+                }
+            }
+            if (keyWindow) break;
+        }
+    }
+    
+    if (!keyWindow) {
+        keyWindow = [UIApplication sharedApplication].keyWindow;
+    }
+#pragma clang diagnostic pop
+
+    UIViewController *topViewController = keyWindow.rootViewController;
+    while (topViewController.presentedViewController) {
+        topViewController = topViewController.presentedViewController;
+    }
+    
+    if ([topViewController isKindOfClass:[UINavigationController class]]) {
+        topViewController = [(UINavigationController *)topViewController visibleViewController];
+    } else if ([topViewController isKindOfClass:[UITabBarController class]]) {
+        topViewController = [(UITabBarController *)topViewController selectedViewController];
+    }
+    
+    return topViewController;
+}
+
+static void showInjectAlertIfNeeded(void) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *const kHasShownKey = @"HasShownChinaMobileAdBlockAlert_Key";
+
+    // 读取本地持久化标志：若已弹过窗则直接返回
+    if ([defaults boolForKey:kHasShownKey]) {
+        return;
+    }
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIViewController *topVC = getTopViewController();
+        if (!topVC) return;
+
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
+                                                                       message:@"中国移动去开屏广告插件已成功生效！"
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
+                                                           style:UIAlertActionStyleDefault 
+                                                         handler:^(UIAlertAction * _Nonnull action) {
+            // 点击确定后写入标记并同步保存
+            [defaults setBool:YES forKey:kHasShownKey];
+            [defaults synchronize];
+        }];
+
+        [alert addAction:okAction];
+        [topVC presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+
+// ============================================================================
+// 4. Tweak 启动入口
+// ============================================================================
+
+%ctor {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                      object:nil
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+        showInjectAlertIfNeeded();
+    }];
+}
