@@ -1,8 +1,12 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 前置接口声明：告知编译器属性与方法，解决 Forward Declaration 编译报错
+// 前置接口声明：告知编译器属性与方法，避免编译报错
 // ============================================================================
+
+@interface ABUSplashAdLoader : NSObject
+- (void)splashAd:(id)a0 didLoadFailWithError:(id)a1 ext:(id)a2;
+@end
 
 @interface GdtSplashAdLoader : NSObject
 @property (nonatomic, retain) id splashAd;
@@ -21,7 +25,7 @@
 
 
 // ============================================================================
-// 1. ABUSplashAdLoader (GroMore 聚合调度层)
+// 1. ABUSplashAdLoader (聚合调度层 - 主动抛错实现秒进)
 // ============================================================================
 %hook ABUSplashAdLoader
 
@@ -30,14 +34,16 @@
 }
 
 - (void)loadMediaAdWithAdapter:(id)a0 mediaSlotConfig:(id)a1 params:(id)a2 {
-    // 阻断加载
+    // 关键修正：直接触发失败回调通知 App，打破 3~5 秒的等待超时，实现秒进
+    NSError *error = [NSError errorWithDomain:@"com.adblock.abu" code:-1001 userInfo:nil];
+    [self splashAd:a0 didLoadFailWithError:error ext:nil];
 }
 
 %end
 
 
 // ============================================================================
-// 2. KsSplashAdLoader (快手开屏广告 Loader)
+// 2. KsSplashAdLoader (快手开屏 Loader)
 // ============================================================================
 %hook KsSplashAdLoader
 
@@ -58,7 +64,7 @@
 
 
 // ============================================================================
-// 3. GdtSplashAdLoader (腾讯/广点通开屏广告 Loader)
+// 3. GdtSplashAdLoader (腾讯/广点通开屏 Loader)
 // ============================================================================
 %hook GdtSplashAdLoader
 
@@ -75,7 +81,7 @@
 
 
 // ============================================================================
-// 4. CsjSplashAdLoader (字节/穿山甲开屏广告 Loader)
+// 4. CsjSplashAdLoader (字节/穿山甲开屏 Loader)
 // ============================================================================
 %hook CsjSplashAdLoader
 
@@ -92,7 +98,7 @@
 
 
 // ============================================================================
-// 5. BDSplashAdLoader (百度开屏广告 Loader)
+// 5. BDSplashAdLoader (百度开屏 Loader)
 // ============================================================================
 %hook BDSplashAdLoader
 
@@ -108,7 +114,7 @@
 
 
 // ============================================================================
-// 6. CSJSplashAdLoader (底层/混淆开屏请求器 - 修复 Block 强转)
+// 6. CSJSplashAdLoader (底层开屏请求器)
 // ============================================================================
 %hook CSJSplashAdLoader
 
@@ -126,6 +132,45 @@
         NSError *error = [NSError errorWithDomain:@"com.adblock.csj.core" code:-1001 userInfo:nil];
         failureBlock(error);
     }
+}
+
+%end
+
+
+// ============================================================================
+// 7. 首次运行弹窗（点击“确定”后后续启动不再弹出）
+// ============================================================================
+%hook UIViewController
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        NSString *const kHasShownAlertKey = @"HasShownAdBlockHookAlert_Key";
+
+        // 仅在未弹出过时执行
+        if (![defaults boolForKey:kHasShownAlertKey]) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功"
+                                                                           message:@"开屏广告屏蔽插件已注入并生效！"
+                                                                    preferredStyle:UIAlertControllerStyleAlert];
+
+            UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定"
+                                                               style:UIAlertActionStyleDefault
+                                                             handler:^(UIAlertAction * _Nonnull action) {
+                // 标记为已弹出并持久化保存
+                [defaults setBool:YES forKey:kHasShownAlertKey];
+                [defaults synchronize];
+            }];
+
+            [alert addAction:okAction];
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self presentViewController:alert animated:YES completion:nil];
+            });
+        }
+    });
 }
 
 %end
