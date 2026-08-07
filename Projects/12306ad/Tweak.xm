@@ -13,12 +13,12 @@
 @end
 
 @interface MTBookTicketHomeTopADView : UIView
-@property (nonatomic, retain) NSArray *materialsList;
+@property (nonatomic, retain) UIScrollView *scrollView;
 @end
 
 
 // ============================================================================
-// 2. 12306 开屏广告拦截 (BonSplashAD) —— 保持不变
+// 2. 12306 开屏广告拦截 (BonSplashAD)
 // ============================================================================
 
 %hook BonSplashAD
@@ -53,33 +53,54 @@
 
 
 // ============================================================================
-// 3. 12306 首页 Banner 广告拦截 (数据源欺骗，触发官方无广告排版)
+// 3. 12306 首页 Banner 广告拦截 (完美折叠无留白版)
 // ============================================================================
 
 %hook MTBookTicketHomeTopADView
 
-// 策略 1: 拦截数据加载。无论服务器下发什么，我们都强行传 nil 给原方法
+// 策略 1: 数据源欺骗。传空数组 @[] 触发原生无广告判定，绝不传 nil
 - (void)loadMaterialsList:(id)a0 withArriveStationCode:(id)a1 voiceOverStatus:(BOOL)a2 {
-    %orig(nil, a1, a2);
+    %orig(@[], a1, a2);
 }
 
-// 策略 2: 拦截视图构建。告诉构建器没有广告数据，触发原生折叠
 - (void)creatADViewWithData:(id)a0 {
-    %orig(nil);
+    %orig(@[]);
 }
 
-// 策略 3: 接管数据源 Getter，防止 App 其他地方读取到旧缓存
 - (NSArray *)materialsList {
-    return nil;
+    return @[];
 }
 
-// 策略 4: 彻底禁止广告轮播定时器启动，极致省电
+- (id)filterADDataWithArriveStationCode:(id)a0 isChangeVoiceOverStatus:(BOOL)a1 {
+    return @[];
+}
+
+// 策略 2: 告诉 AutoLayout 布局引擎，该视图内容为空，请自然折叠
+- (CGSize)intrinsicContentSize {
+    return CGSizeZero;
+}
+
+- (CGSize)sizeThatFits:(CGSize)size {
+    return CGSizeZero;
+}
+
+// 策略 3: 清理所有视觉残留
+- (void)didMoveToWindow {
+    %orig;
+    
+    // 隐藏内部的滚动广告容器
+    if (self.scrollView) {
+        self.scrollView.hidden = YES;
+    }
+    
+    // 抽掉白色的背景底色，防止留下色块
+    self.backgroundColor = [UIColor clearColor];
+}
+
+// 策略 4: 节约性能，彻底干掉轮播器定时器
 - (void)initAnimationScrollTimerWithDuration:(double)a0 {
     return;
 }
-
-// ⚠️ 注意：这里彻底去掉了 didMoveToWindow 的 UI 强行修改逻辑
-// 把排版工作交还给 12306 原生引擎！
 
 %end
 
@@ -140,7 +161,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"12306 终极版去广告（官方原生排版）已生效！"
+                                                                       message:@"12306 终极原生折叠版已生效，尽情享受纯净首页！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
