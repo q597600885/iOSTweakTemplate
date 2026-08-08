@@ -1,9 +1,10 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明
+// 1. 前置接口声明 (补全所有第三方 SDK，纯 ObjC，绝对安全)
 // ============================================================================
 
+// --- 穿山甲 & TopOn ---
 @protocol ATNativeADDelegate <NSObject>
 @optional
 - (void)didFailToLoadADWithPlacementID:(id)placement error:(NSError *)error;
@@ -14,56 +15,64 @@
 - (void)nativeAdsManager:(id)manager didFailWithError:(NSError *)error;
 @end
 
+// --- 腾讯广点通 (GDT) ---
+@protocol GDTNativeExpressAdDelegete <NSObject>
+@optional
+- (void)nativeExpressAdFailToLoad:(id)nativeExpressAd error:(NSError *)error;
+@end
+
+@protocol GDTUnifiedNativeAdDelegate <NSObject>
+@optional
+- (void)gdt_unifiedNativeAd:(id)unifiedNativeAd didFailWithError:(NSError *)error;
+@end
+
+// --- 开屏 ---
 @protocol BUMSplashAdDelegate <NSObject>
 @optional
 - (void)splashAd:(id)splashAd didFailWithError:(NSError *)error;
 - (void)splashAdDidClose:(id)splashAd withType:(NSInteger)type;
 @end
 
+// --- 类前置声明 ---
 @interface ATNativeAD : NSObject
 @end
-
 @interface BUMNativeAdsManager : NSObject
 @end
-
 @interface BUNativeAdsManager : NSObject
 @end
-
+@interface GDTNativeExpressAd : NSObject
+@end
+@interface GDTUnifiedNativeAd : NSObject
+@end
 @interface GMSplashAd : NSObject
 @property (nonatomic, weak) id<BUMSplashAdDelegate> delegate;
 - (void)removeSplashView;
 @end
-
 @interface TXAdSplashManager : NSObject
 @property (nonatomic, weak) id delegate;
 @end
-
 @interface ABUSplashAd : NSObject
 - (void)loadAdData;
 - (BOOL)isAdValid;
 @end
 
-@interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
-@end
-
 
 // ============================================================================
-// 2. 信息流/评论区第三方 SDK 拦截 (纯 ObjC)
+// 2. 信息流/评论区第三方 SDK 拦截 (纯 ObjC 底层数据拦截，彻底解决漏网之鱼)
 // ============================================================================
 
+// 1. 拦截 TopOn 聚合原生广告
 %hook ATNativeAD
-
 - (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         [delegate didFailToLoadADWithPlacementID:placement error:safeError];
     }
 }
-
 %end
 
+// 2. 拦截 穿山甲/GroMore 原生广告
 %hook BUMNativeAdsManager
-
 - (void)loadAdDataWithCount:(long long)count {
     id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
     if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
@@ -71,11 +80,9 @@
         [delegate nativeAdsManager:self didFailWithError:safeError];
     }
 }
-
 %end
 
 %hook BUNativeAdsManager
-
 - (void)loadAdDataWithCount:(long long)count {
     id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
     if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
@@ -83,7 +90,27 @@
         [delegate nativeAdsManager:self didFailWithError:safeError];
     }
 }
+%end
 
+// 3. 拦截 腾讯广点通(优量汇) 原生广告 (解决携程等漏网卡片)
+%hook GDTNativeExpressAd
+- (void)loadAd {
+    id<GDTNativeExpressAdDelegete> delegate = [self valueForKey:@"delegate"];
+    if (delegate && [delegate respondsToSelector:@selector(nativeExpressAdFailToLoad:error:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        [delegate nativeExpressAdFailToLoad:self error:safeError];
+    }
+}
+%end
+
+%hook GDTUnifiedNativeAd
+- (void)loadAd {
+    id<GDTUnifiedNativeAdDelegate> delegate = [self valueForKey:@"delegate"];
+    if (delegate && [delegate respondsToSelector:@selector(gdt_unifiedNativeAd:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        [delegate gdt_unifiedNativeAd:self didFailWithError:safeError];
+    }
+}
 %end
 
 
@@ -92,27 +119,18 @@
 // ============================================================================
 
 %hook TXAdSplashManager
-
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
-    if (block) {
-        block(nil);
-    }
+    if (block) block(nil);
 }
-
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block renderMode:(unsigned long long)mode {
-    if (block) {
-        block(nil);
-    }
+    if (block) block(nil);
 }
-
 - (void)preGetSplashAdData {
     return;
 }
-
 - (id)renderSplashTemplateWithAdModel:(id)model config:(id)config {
     return nil;
 }
-
 %end
 
 
@@ -121,19 +139,16 @@
 // ============================================================================
 
 %hook GMSplashAd
-
 - (void)loadAdData {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
         [self.delegate splashAd:(id)self didFailWithError:nil];
     }
 }
-
 - (void)loadAdDataWithMediaSlotConfigIDs:(id)a0 sign:(long long)a1 {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
         [self.delegate splashAd:(id)self didFailWithError:nil];
     }
 }
-
 - (void)showSplashViewInRootViewController:(id)a0 {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAdDidClose:withType:)]) {
         [self.delegate splashAdDidClose:(id)self withType:0];
@@ -141,64 +156,23 @@
         [self removeSplashView];
     }
 }
-
 - (void)showCardViewInRootViewController:(id)a0 {
     return;
 }
-
 %end
 
 %hook ABUSplashAd
-
 - (void)loadAdData {
     return;
 }
-
 - (BOOL)isAdValid {
     return NO;
 }
-
 %end
 
 
 // ============================================================================
-// 5. 漏网之鱼终结者：酷安广告卡片 UI 层安全隐形欺骗 (防官方自营广告)
-// ============================================================================
-
-%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
-
-// 绝招 1：告诉 CollectionView 该卡片高度只有 0.01 (不会引发布局报错，且肉眼不可见)
-- (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeMake(size.width, 0.01);
-}
-
-// 绝招 2：强制覆盖布局属性高度
-- (UICollectionViewLayoutAttributes *)preferredLayoutAttributesFittingAttributes:(UICollectionViewLayoutAttributes *)layoutAttributes {
-    UICollectionViewLayoutAttributes *attributes = %orig(layoutAttributes);
-    if (attributes.frame.size.height > 1.0) {
-        CGRect frame = attributes.frame;
-        frame.size.height = 0.01; 
-        attributes.frame = frame;
-    }
-    return attributes;
-}
-
-// 绝招 3：彻底隐藏所有视图，杜绝白块现象
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES;
-    self.alpha = 0.0;
-    self.clipsToBounds = YES;
-    for (UIView *subview in self.subviews) {
-        subview.hidden = YES;
-    }
-}
-
-%end
-
-
-// ============================================================================
-// 6. 弹窗辅助
+// 5. 弹窗辅助
 // ============================================================================
 static UIViewController *getTopViewController(void) {
     __block UIWindow *keyWindow = nil;
@@ -235,7 +209,7 @@ static void showInjectAlertIfNeeded(void) {
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安全局去广告（含漏网卡片）已生效！"
+                                                                       message:@"酷安开屏及底层去广告已生效（极度安全版）！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
             [defaults setBool:YES forKey:kHasShownKey];
