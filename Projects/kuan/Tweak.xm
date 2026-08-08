@@ -54,7 +54,7 @@
 - (BOOL)isAdValid;
 @end
 
-// --- 🚀 新增：SDK 渲染视图类 (纯 ObjC，Hook 绝对安全) ---
+// --- SDK 渲染视图类 ---
 @interface ABUNativeAdView : UIView
 @end
 @interface GDTUnifiedNativeAdView : UIView
@@ -68,45 +68,77 @@
 
 
 // ============================================================================
-// 2. 🚀 漏网之鱼终结：原生 SDK 视图物理折叠 (绝不闪退)
+// 2. 漏网之鱼终结：原生 SDK 视图物理折叠 (绝不闪退)
 // ============================================================================
 
-// 拦截穿山甲 GroMore 聚合视图
 %hook ABUNativeAdView
-- (CGSize)intrinsicContentSize { return CGSizeZero; }
-- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
+}
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
+}
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
+}
 %end
 
-// 拦截腾讯广点通视图
 %hook GDTUnifiedNativeAdView
-- (CGSize)intrinsicContentSize { return CGSizeZero; }
-- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
+}
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
+}
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
+}
 %end
 
 %hook GDTNativeExpressAdView
-- (CGSize)intrinsicContentSize { return CGSizeZero; }
-- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
+}
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
+}
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
+}
 %end
 
-// 拦截纯穿山甲视图
 %hook BUNativeAdView
-- (CGSize)intrinsicContentSize { return CGSizeZero; }
-- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
+}
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
+}
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
+}
 %end
 
 %hook BUMNativeAdView
-- (CGSize)intrinsicContentSize { return CGSizeZero; }
-- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
+}
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
+}
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
+}
 %end
 
 
 // ============================================================================
-// 3. 第三方 SDK 底层数据拦截 (保留之前的异步安全策略)
+// 3. 第三方 SDK 底层数据拦截 (异步安全策略)
 // ============================================================================
 
 %hook ATNativeAD
@@ -183,10 +215,14 @@
 
 %hook TXAdSplashManager
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
-    if (block) block(nil);
+    if (block) {
+        block(nil);
+    }
 }
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block renderMode:(unsigned long long)mode {
-    if (block) block(nil);
+    if (block) {
+        block(nil);
+    }
 }
 - (void)preGetSplashAdData {
     return;
@@ -254,12 +290,20 @@ static UIViewController *getTopViewController(void) {
             if (keyWindow) break;
         }
     }
-    if (!keyWindow) keyWindow = [UIApplication sharedApplication].keyWindow;
+    if (!keyWindow) {
+        keyWindow = [UIApplication sharedApplication].keyWindow;
+    }
 #pragma clang diagnostic pop
+    
     UIViewController *topViewController = keyWindow.rootViewController;
-    while (topViewController.presentedViewController) topViewController = topViewController.presentedViewController;
-    if ([topViewController isKindOfClass:[UINavigationController class]]) topViewController = [(UINavigationController *)topViewController visibleViewController];
-    else if ([topViewController isKindOfClass:[UITabBarController class]]) topViewController = [(UITabBarController *)topViewController selectedViewController];
+    while (topViewController.presentedViewController) {
+        topViewController = topViewController.presentedViewController;
+    }
+    if ([topViewController isKindOfClass:[UINavigationController class]]) {
+        topViewController = [(UINavigationController *)topViewController visibleViewController];
+    } else if ([topViewController isKindOfClass:[UITabBarController class]]) {
+        topViewController = [(UITabBarController *)topViewController selectedViewController];
+    }
     return topViewController;
 }
 
@@ -267,9 +311,11 @@ static void showInjectAlertIfNeeded(void) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *const kHasShownKey = @"HasShownCoolapkAdBlockAlert_Key";
     if ([defaults boolForKey:kHasShownKey]) return;
+    
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
+        
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
                                                                        message:@"底层视图物理折叠已生效，彻底告别漏网广告！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
