@@ -52,93 +52,86 @@
 - (BOOL)isAdValid;
 @end
 
-// 💡 声明酷安广告 Cell (Swift 类名替换点号)
 @interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
 @end
 
 
 // ============================================================================
-// 2. 漏网之鱼终结：基于 FLEX 分析的安全 UI 隐藏
-// ============================================================================
-
-%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
-
-// 方案1改良：修改返回size，高度置为 0.01 避免 0 导致的布局引擎闪退
-- (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeMake(size.width, 0.01);
-}
-
-// 方案1兜底：仅做最基础的隐藏和透明，绝不触碰 subviews，规避野指针崩溃
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES;
-    self.alpha = 0.0;
-}
-
-// 方案2：如果布局复用导致卡片意外出现，拦截它的关闭逻辑
-- (void)didTapCloseButton {
-    %orig;
-}
-
-%end
-
-
-// ============================================================================
-// 3. 第三方 SDK 底层数据拦截 (保障大盘广告彻底剔除)
+// 2. 第三方 SDK 底层数据拦截 (加入异步时序保护，杜绝列表重入闪退)
 // ============================================================================
 
 %hook ATNativeAD
 - (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
-        [delegate didFailToLoadADWithPlacementID:placement error:safeError];
+        // ⭐️ 核心修复：异步回调，防止打断 CollectionView 的 Layout 周期
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [delegate didFailToLoadADWithPlacementID:placement error:safeError];
+        });
     }
 }
 %end
 
 %hook BUMNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
-    if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
-        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
-        [delegate nativeAdsManager:self didFailWithError:safeError];
+    // ⭐️ 核心修复：安全判断属性是否存在，避免 KVC 崩溃
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate nativeAdsManager:self didFailWithError:safeError];
+            });
+        }
     }
 }
 %end
 
 %hook BUNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
-    if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
-        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
-        [delegate nativeAdsManager:self didFailWithError:safeError];
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate nativeAdsManager:self didFailWithError:safeError];
+            });
+        }
     }
 }
 %end
 
 %hook GDTNativeExpressAd
 - (void)loadAd {
-    id<GDTNativeExpressAdDelegete> delegate = [self valueForKey:@"delegate"];
-    if (delegate && [delegate respondsToSelector:@selector(nativeExpressAdFailToLoad:error:)]) {
-        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
-        [delegate nativeExpressAdFailToLoad:self error:safeError];
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id<GDTNativeExpressAdDelegete> delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(nativeExpressAdFailToLoad:error:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate nativeExpressAdFailToLoad:self error:safeError];
+            });
+        }
     }
 }
 %end
 
 %hook GDTUnifiedNativeAd
 - (void)loadAd {
-    id<GDTUnifiedNativeAdDelegate> delegate = [self valueForKey:@"delegate"];
-    if (delegate && [delegate respondsToSelector:@selector(gdt_unifiedNativeAd:didFailWithError:)]) {
-        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
-        [delegate gdt_unifiedNativeAd:self didFailWithError:safeError];
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id<GDTUnifiedNativeAdDelegate> delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(gdt_unifiedNativeAd:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate gdt_unifiedNativeAd:self didFailWithError:safeError];
+            });
+        }
     }
 }
 %end
 
 
 // ============================================================================
-// 4. 酷安开屏拦截 (TXAd / GroMore / AnyThink)
+// 3. 酷安开屏拦截 (TXAd / GroMore / AnyThink)
 // ============================================================================
 
 %hook TXAdSplashManager
@@ -159,12 +152,16 @@
 %hook GMSplashAd
 - (void)loadAdData {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
-        [self.delegate splashAd:(id)self didFailWithError:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate splashAd:(id)self didFailWithError:nil];
+        });
     }
 }
 - (void)loadAdDataWithMediaSlotConfigIDs:(id)a0 sign:(long long)a1 {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
-        [self.delegate splashAd:(id)self didFailWithError:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate splashAd:(id)self didFailWithError:nil];
+        });
     }
 }
 - (void)showSplashViewInRootViewController:(id)a0 {
@@ -186,6 +183,22 @@
 - (BOOL)isAdValid {
     return NO;
 }
+%end
+
+
+// ============================================================================
+// 4. 漏网之鱼终结：基于 FLEX 分析的安全 UI 隐藏 (彻底放弃修改高度)
+// ============================================================================
+
+%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
+
+// 仅做最基础的透明隐藏，彻底顺从原有的 AutoLayout 布局，保证滑动时绝不闪退
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+    self.alpha = 0.0;
+}
+
 %end
 
 
@@ -227,7 +240,7 @@ static void showInjectAlertIfNeeded(void) {
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"结合 FLEX 优化的全效去广告已生效！"
+                                                                       message:@"结合异步安全回调的去广告已生效，防滑闪退！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
             [defaults setBool:YES forKey:kHasShownKey];
