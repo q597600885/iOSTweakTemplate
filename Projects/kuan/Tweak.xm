@@ -24,39 +24,46 @@
 - (BOOL)isAdValid;
 @end
 
-// 声明广告 Loader 类 (Swift 类映射)
-@interface CoolMarket_GeneralEntityListFeedAdvertisementLoader_Topon : NSObject
-- (void)didFailToLoadADWithPlacementID:(id)a0 error:(id)a1;
-@end
-
-@interface CoolMarket_GeneralEntityListFeedAdvertisementLoader_GMSelfDraw : NSObject
-- (void)nativeAdsManager:(id)a0 didFailWithError:(id)a1;
-@end
-
 
 // ============================================================================
-// 2. 酷安信息流/评论区广告 Loader 源头切断 (数据层点杀，绝对不闪退)
+// 2. 信息流/评论区广告底层 SDK 拦截 (纯 ObjC，绝对防闪退)
 // ============================================================================
 
-// 1. 切断 GroMore 原生自渲染广告 (穿山甲)
-%hook CoolMarket_GeneralEntityListFeedAdvertisementLoader_GMSelfDraw
+// 拦截 TopOn 聚合原生广告 SDK
+%hook ATNativeAD
 
-- (void)nativeAdsManagerSuccessToLoad:(id)a0 nativeAds:(id)a1 {
-    // 当穿山甲广告加载成功时，故意欺骗酷安，给它抛出一个失败回调，不把广告加进列表数据源
-    if ([self respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
-        [self nativeAdsManager:a0 didFailWithError:nil];
+- (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id)delegate {
+    // 伪造一个真实的 NSError 对象，防止 Swift 层因收到 nil error 而强解包崩溃
+    if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        [delegate didFailToLoadADWithPlacementID:placement error:safeError];
     }
 }
 
 %end
 
-// 2. 切断 Topon 聚合原生广告
-%hook CoolMarket_GeneralEntityListFeedAdvertisementLoader_Topon
+// 拦截 穿山甲/GroMore 原生自渲染广告 SDK
+%hook BUMNativeAdsManager
 
-- (void)didFinishLoadingADWithPlacementID:(id)a0 {
-    // 收到加载成功通知时，直接转化为失败回调
-    if ([self respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
-        [self didFailToLoadADWithPlacementID:a0 error:nil];
+- (void)loadAdDataWithCount:(long long)count {
+    // 通过 KVC 安全获取 delegate
+    id delegate = [self valueForKey:@"delegate"];
+    if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        [delegate nativeAdsManager:self didFailWithError:safeError];
+    }
+}
+
+%end
+
+// 补充拦截纯穿山甲原生广告 SDK (作为兜底)
+%hook BUNativeAdsManager
+
+- (void)loadAdDataWithCount:(long long)count {
+    id delegate = [self valueForKey:@"delegate"];
+    if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        [delegate nativeAdsManager:self didFailWithError:safeError];
     }
 }
 
@@ -100,7 +107,7 @@
 
 - (void)loadAdData {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
-        [self.delegate splashAd:(id)self didFailWithError:nil];
+        [self.delegate splashAd:(id)self didFailWithError:nil]; // 开屏部分的 ObjC delegate 传 nil 通常安全
     }
 }
 
@@ -193,7 +200,7 @@ static void showInjectAlertIfNeeded(void) {
         if (!topVC) return;
 
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安开屏及评论区信息流去广告已生效！"
+                                                                       message:@"酷安开屏及评论区信息流底层去广告已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
