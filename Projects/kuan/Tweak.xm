@@ -1,9 +1,10 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明 (纯 ObjC SDK + Swift UI 类声明)
+// 1. 前置接口声明 (补充 SDK 原生视图类)
 // ============================================================================
 
+// --- 代理协议 ---
 @protocol ATNativeADDelegate <NSObject>
 @optional
 - (void)didFailToLoadADWithPlacementID:(id)placement error:(NSError *)error;
@@ -30,6 +31,7 @@
 - (void)splashAdDidClose:(id)splashAd withType:(NSInteger)type;
 @end
 
+// --- 数据层类 ---
 @interface ATNativeAD : NSObject
 @end
 @interface BUMNativeAdsManager : NSObject
@@ -52,19 +54,65 @@
 - (BOOL)isAdValid;
 @end
 
-@interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
+// --- 🚀 新增：SDK 渲染视图类 (纯 ObjC，Hook 绝对安全) ---
+@interface ABUNativeAdView : UIView
+@end
+@interface GDTUnifiedNativeAdView : UIView
+@end
+@interface GDTNativeExpressAdView : UIView
+@end
+@interface BUNativeAdView : UIView
+@end
+@interface BUMNativeAdView : UIView
 @end
 
 
 // ============================================================================
-// 2. 第三方 SDK 底层数据拦截 (加入异步时序保护，杜绝列表重入闪退)
+// 2. 🚀 漏网之鱼终结：原生 SDK 视图物理折叠 (绝不闪退)
+// ============================================================================
+
+// 拦截穿山甲 GroMore 聚合视图
+%hook ABUNativeAdView
+- (CGSize)intrinsicContentSize { return CGSizeZero; }
+- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
+%end
+
+// 拦截腾讯广点通视图
+%hook GDTUnifiedNativeAdView
+- (CGSize)intrinsicContentSize { return CGSizeZero; }
+- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
+%end
+
+%hook GDTNativeExpressAdView
+- (CGSize)intrinsicContentSize { return CGSizeZero; }
+- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
+%end
+
+// 拦截纯穿山甲视图
+%hook BUNativeAdView
+- (CGSize)intrinsicContentSize { return CGSizeZero; }
+- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
+%end
+
+%hook BUMNativeAdView
+- (CGSize)intrinsicContentSize { return CGSizeZero; }
+- (CGSize)sizeThatFits:(CGSize)size { return CGSizeZero; }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
+%end
+
+
+// ============================================================================
+// 3. 第三方 SDK 底层数据拦截 (保留之前的异步安全策略)
 // ============================================================================
 
 %hook ATNativeAD
 - (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
-        // ⭐️ 核心修复：异步回调，防止打断 CollectionView 的 Layout 周期
         dispatch_async(dispatch_get_main_queue(), ^{
             [delegate didFailToLoadADWithPlacementID:placement error:safeError];
         });
@@ -74,7 +122,6 @@
 
 %hook BUMNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    // ⭐️ 核心修复：安全判断属性是否存在，避免 KVC 崩溃
     if ([self respondsToSelector:@selector(delegate)]) {
         id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
@@ -131,7 +178,7 @@
 
 
 // ============================================================================
-// 3. 酷安开屏拦截 (TXAd / GroMore / AnyThink)
+// 4. 酷安开屏拦截 (TXAd / GroMore / AnyThink)
 // ============================================================================
 
 %hook TXAdSplashManager
@@ -187,22 +234,6 @@
 
 
 // ============================================================================
-// 4. 漏网之鱼终结：基于 FLEX 分析的安全 UI 隐藏 (彻底放弃修改高度)
-// ============================================================================
-
-%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
-
-// 仅做最基础的透明隐藏，彻底顺从原有的 AutoLayout 布局，保证滑动时绝不闪退
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES;
-    self.alpha = 0.0;
-}
-
-%end
-
-
-// ============================================================================
 // 5. 首次注入提示框
 // ============================================================================
 static UIViewController *getTopViewController(void) {
@@ -240,7 +271,7 @@ static void showInjectAlertIfNeeded(void) {
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"结合异步安全回调的去广告已生效，防滑闪退！"
+                                                                       message:@"底层视图物理折叠已生效，彻底告别漏网广告！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
             [defaults setBool:YES forKey:kHasShownKey];
