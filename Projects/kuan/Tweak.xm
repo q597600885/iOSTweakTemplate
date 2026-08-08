@@ -1,13 +1,34 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明
+// 1. 前置接口声明 (补全底层 SDK 类与协议，彻底解决编译报错)
 // ============================================================================
+
+// --- 协议声明区 (让编译器认识 delegate 方法) ---
+@protocol ATNativeADDelegate <NSObject>
+@optional
+- (void)didFailToLoadADWithPlacementID:(id)placement error:(NSError *)error;
+@end
+
+@protocol BUMNativeAdsManagerDelegate <NSObject>
+@optional
+- (void)nativeAdsManager:(id)manager didFailWithError:(NSError *)error;
+@end
 
 @protocol BUMSplashAdDelegate <NSObject>
 @optional
 - (void)splashAd:(id)splashAd didFailWithError:(NSError *)error;
 - (void)splashAdDidClose:(id)splashAd withType:(NSInteger)type;
+@end
+
+// --- 类声明区 (解决 forward declaration 报错) ---
+@interface ATNativeAD : NSObject
+@end
+
+@interface BUMNativeAdsManager : NSObject
+@end
+
+@interface BUNativeAdsManager : NSObject
 @end
 
 @interface GMSplashAd : NSObject
@@ -32,7 +53,7 @@
 // 拦截 TopOn 聚合原生广告 SDK
 %hook ATNativeAD
 
-- (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id)delegate {
+- (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
     // 伪造一个真实的 NSError 对象，防止 Swift 层因收到 nil error 而强解包崩溃
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
@@ -46,8 +67,8 @@
 %hook BUMNativeAdsManager
 
 - (void)loadAdDataWithCount:(long long)count {
-    // 通过 KVC 安全获取 delegate
-    id delegate = [self valueForKey:@"delegate"];
+    // 通过 KVC 安全获取 delegate，并指定协议类型
+    id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
     if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         [delegate nativeAdsManager:self didFailWithError:safeError];
@@ -60,7 +81,7 @@
 %hook BUNativeAdsManager
 
 - (void)loadAdDataWithCount:(long long)count {
-    id delegate = [self valueForKey:@"delegate"];
+    id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
     if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         [delegate nativeAdsManager:self didFailWithError:safeError];
@@ -107,7 +128,7 @@
 
 - (void)loadAdData {
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
-        [self.delegate splashAd:(id)self didFailWithError:nil]; // 开屏部分的 ObjC delegate 传 nil 通常安全
+        [self.delegate splashAd:(id)self didFailWithError:nil];
     }
 }
 
