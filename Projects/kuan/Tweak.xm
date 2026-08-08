@@ -1,10 +1,9 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
-// 1. 前置接口声明 (补全所有第三方 SDK，纯 ObjC，绝对安全)
+// 1. 前置接口声明 (纯 ObjC SDK + Swift UI 类声明)
 // ============================================================================
 
-// --- 穿山甲 & TopOn ---
 @protocol ATNativeADDelegate <NSObject>
 @optional
 - (void)didFailToLoadADWithPlacementID:(id)placement error:(NSError *)error;
@@ -15,7 +14,6 @@
 - (void)nativeAdsManager:(id)manager didFailWithError:(NSError *)error;
 @end
 
-// --- 腾讯广点通 (GDT) ---
 @protocol GDTNativeExpressAdDelegete <NSObject>
 @optional
 - (void)nativeExpressAdFailToLoad:(id)nativeExpressAd error:(NSError *)error;
@@ -26,14 +24,12 @@
 - (void)gdt_unifiedNativeAd:(id)unifiedNativeAd didFailWithError:(NSError *)error;
 @end
 
-// --- 开屏 ---
 @protocol BUMSplashAdDelegate <NSObject>
 @optional
 - (void)splashAd:(id)splashAd didFailWithError:(NSError *)error;
 - (void)splashAdDidClose:(id)splashAd withType:(NSInteger)type;
 @end
 
-// --- 类前置声明 ---
 @interface ATNativeAD : NSObject
 @end
 @interface BUMNativeAdsManager : NSObject
@@ -56,12 +52,41 @@
 - (BOOL)isAdValid;
 @end
 
+// 💡 声明酷安广告 Cell (Swift 类名替换点号)
+@interface CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4 : UICollectionViewCell
+@end
+
 
 // ============================================================================
-// 2. 信息流/评论区第三方 SDK 拦截 (纯 ObjC 底层数据拦截，彻底解决漏网之鱼)
+// 2. 漏网之鱼终结：基于 FLEX 分析的安全 UI 隐藏
 // ============================================================================
 
-// 1. 拦截 TopOn 聚合原生广告
+%hook CoolMarket_GeneralEntityListFeedAdvertisementCellBaseV4
+
+// 方案1改良：修改返回size，高度置为 0.01 避免 0 导致的布局引擎闪退
+- (CGSize)sizeThatFits:(CGSize)size {
+    return CGSizeMake(size.width, 0.01);
+}
+
+// 方案1兜底：仅做最基础的隐藏和透明，绝不触碰 subviews，规避野指针崩溃
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+    self.alpha = 0.0;
+}
+
+// 方案2：如果布局复用导致卡片意外出现，拦截它的关闭逻辑
+- (void)didTapCloseButton {
+    %orig;
+}
+
+%end
+
+
+// ============================================================================
+// 3. 第三方 SDK 底层数据拦截 (保障大盘广告彻底剔除)
+// ============================================================================
+
 %hook ATNativeAD
 - (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
@@ -71,7 +96,6 @@
 }
 %end
 
-// 2. 拦截 穿山甲/GroMore 原生广告
 %hook BUMNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
     id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
@@ -92,7 +116,6 @@
 }
 %end
 
-// 3. 拦截 腾讯广点通(优量汇) 原生广告 (解决携程等漏网卡片)
 %hook GDTNativeExpressAd
 - (void)loadAd {
     id<GDTNativeExpressAdDelegete> delegate = [self valueForKey:@"delegate"];
@@ -115,7 +138,7 @@
 
 
 // ============================================================================
-// 3. 酷安热启动/定时开屏广告拦截 (TXAd 引擎)
+// 4. 酷安开屏拦截 (TXAd / GroMore / AnyThink)
 // ============================================================================
 
 %hook TXAdSplashManager
@@ -132,11 +155,6 @@
     return nil;
 }
 %end
-
-
-// ============================================================================
-// 4. 酷安冷启动开屏广告拦截 (GroMore / AnyThink 聚合 SDK)
-// ============================================================================
 
 %hook GMSplashAd
 - (void)loadAdData {
@@ -172,7 +190,7 @@
 
 
 // ============================================================================
-// 5. 弹窗辅助
+// 5. 首次注入提示框
 // ============================================================================
 static UIViewController *getTopViewController(void) {
     __block UIWindow *keyWindow = nil;
@@ -209,7 +227,7 @@ static void showInjectAlertIfNeeded(void) {
         UIViewController *topVC = getTopViewController();
         if (!topVC) return;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Hook 成功 🎉"
-                                                                       message:@"酷安开屏及底层去广告已生效（极度安全版）！"
+                                                                       message:@"结合 FLEX 优化的全效去广告已生效！"
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
             [defaults setBool:YES forKey:kHasShownKey];
