@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
-#import "../../Includes/Debug.h" // 👈 引用根目录下的公共头文件
+#import "../Includes/Debug.h" // 👈 修正：从 Projects/kuan 到根目录 Includes 的正确相对路径
 
-#define LOG_TAG @"Coolapk" // 👈 当前插件日志标识
+#define LOG_TAG @"Coolapk"
 
 
 // ============================================================================
@@ -69,68 +69,68 @@
 // ============================================================================
 
 %hook ABUNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
 }
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
 }
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
 }
 %end
 
 %hook GDTUnifiedNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
 }
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
 }
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
     TweakLog(LOG_TAG, @"[Action] 成功折叠 GDTUnifiedNativeAdView 广告卡片");
 }
 %end
 
 %hook GDTNativeExpressAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
 }
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
 }
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
 }
 %end
 
 %hook BUNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
 }
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
 }
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
 }
 %end
 
 %hook BUMNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
+- (CGSize)intrinsicContentSize { 
+    return CGSizeZero; 
 }
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
+- (CGSize)sizeThatFits:(CGSize)size { 
+    return CGSizeZero; 
 }
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
+- (void)layoutSubviews { 
+    %orig; 
+    self.hidden = YES; 
 }
 %end
 
@@ -174,4 +174,76 @@
         if (delegate && [delegate respondsToSelector:@selector(nativeExpressAdFailToLoad:error:)]) {
             NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
             dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate nativeExpressAdFailToLoa
+                [delegate nativeExpressAdFailToLoad:self error:safeError];
+            });
+        }
+    }
+}
+%end
+
+
+// ============================================================================
+// 4. 酷安冷/热开屏拦截
+// ============================================================================
+
+%hook TXAdSplashManager
+- (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
+    TweakLog(LOG_TAG, @"[Hook 触发] 拦截酷安 TXAd 热启动开屏");
+    if (block) {
+        block(nil);
+    }
+}
+- (void)preGetSplashAdData {
+    TweakLog(LOG_TAG, @"[Hook 触发] 拦截酷安切后台预加载广告");
+    return;
+}
+- (id)renderSplashTemplateWithAdModel:(id)model config:(id)config {
+    TweakLog(LOG_TAG, @"[Hook 触发] 拦截酷安开屏模板渲染");
+    return nil;
+}
+%end
+
+%hook GMSplashAd
+- (void)loadAdData {
+    TweakLog(LOG_TAG, @"[Hook 触发] 拦截 GroMore 开屏加载 (安全 NSError 回调)");
+    if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate splashAd:(id)self didFailWithError:safeError];
+        });
+    }
+}
+- (void)loadAdDataWithMediaSlotConfigIDs:(id)a0 sign:(long long)a1 {
+    TweakLog(LOG_TAG, @"[Hook 触发] 拦截 GroMore 扩展开屏加载");
+    if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate splashAd:(id)self didFailWithError:safeError];
+        });
+    }
+}
+- (void)showSplashViewInRootViewController:(id)a0 {
+    TweakLog(LOG_TAG, @"[Hook 触发] 阻断 GroMore 开屏展示");
+    if (self.delegate && [self.delegate respondsToSelector:@selector(splashAdDidClose:withType:)]) {
+        [self.delegate splashAdDidClose:(id)self withType:0];
+    } else if ([self respondsToSelector:@selector(removeSplashView)]) {
+        [self removeSplashView];
+    }
+}
+%end
+
+
+// ============================================================================
+// 5. 插件入口 (冷启动清空旧日志)
+// ============================================================================
+
+%ctor {
+    ResetDebugLog(LOG_TAG);
+    
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                      object:nil 
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+        TweakLog(LOG_TAG, @"🎉 酷安去广告插件已启动，日志自动重置成功！");
+    }];
+}
