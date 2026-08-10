@@ -1,5 +1,5 @@
 #import <UIKit/UIKit.h>
-#import "../../Includes/Debug.h" // 👈 真正正确的相对路径：退两层回到根目录
+#import "Includes/Debug.h" // 👈 听编译器的，直接用这个路径！
 
 #define LOG_TAG @"Coolapk"
 
