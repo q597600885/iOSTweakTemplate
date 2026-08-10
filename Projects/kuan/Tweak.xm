@@ -1,5 +1,5 @@
 #import <UIKit/UIKit.h>
-#import "../Includes/Debug.h" // 👈 修正：从 Projects/kuan 到根目录 Includes 的正确相对路径
+#import "../../Includes/Debug.h" // 👈 真正正确的相对路径：退两层回到根目录
 
 #define LOG_TAG @"Coolapk"
 
