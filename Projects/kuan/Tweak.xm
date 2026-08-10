@@ -2,7 +2,7 @@
 #import <objc/runtime.h>
 
 // ============================================================================
-// 0. 自包含调试日志与内存扫描模块 (无需额外的 Debug.h 文件)
+// 0. 自包含调试日志与内存扫描模块
 // ============================================================================
 
 static void TweakLog(NSString *format, ...) {
@@ -11,10 +11,8 @@ static void TweakLog(NSString *format, ...) {
     NSString *msg = [[NSString alloc] initWithFormat:format arguments:args];
     va_end(args);
 
-    // 1. 控制台实时输出
     NSLog(@"[TweakDebug] %@", msg);
 
-    // 2. 写入 App 沙盒 Documents 目录 (100% 有读写权限，可用 Filza/文件 App 查看)
     NSString *docPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
     NSString *filePath = [docPath stringByAppendingPathComponent:@"TweakDebug.log"];
 
@@ -31,24 +29,6 @@ static void TweakLog(NSString *format, ...) {
         [fileHandle writeData:[logLine dataUsingEncoding:NSUTF8StringEncoding]];
         [fileHandle closeFile];
     }
-}
-
-static void ScanRuntimeClasses(NSString *keyword) {
-    TweakLog(@"================ 开始扫描包含 [%@] 的 Runtime 类 ================", keyword);
-    int numClasses = objc_getClassList(NULL, 0);
-    if (numClasses <= 0) return;
-
-    Class *classes = (__unsafe_unretained Class *)malloc(sizeof(Class) * numClasses);
-    numClasses = objc_getClassList(classes, numClasses);
-
-    for (int i = 0; i < numClasses; i++) {
-        NSString *className = NSStringFromClass(classes[i]);
-        if ([className localizedCaseInsensitiveContainsString:keyword]) {
-            TweakLog(@"[Find Class] %@", className);
-        }
-    }
-    free(classes);
-    TweakLog(@"================ 扫描完成 ================");
 }
 
 
@@ -99,10 +79,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
 @interface TXAdSplashManager : NSObject
 @property (nonatomic, weak) id delegate;
 @end
-@interface ABUSplashAd : NSObject
-- (void)loadAdData;
-- (BOOL)isAdValid;
-@end
 
 @interface ABUNativeAdView : UIView
 @end
@@ -117,7 +93,7 @@ static void ScanRuntimeClasses(NSString *keyword) {
 
 
 // ============================================================================
-// 2. 原生 SDK 视图物理折叠 + 运行日志
+// 2. 原生 SDK 视图物理折叠 (解决评论区/信息流漏网卡片)
 // ============================================================================
 
 %hook ABUNativeAdView
@@ -130,7 +106,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 ABUNativeAdView");
 }
 %end
 
@@ -144,7 +119,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 GDTUnifiedNativeAdView");
 }
 %end
 
@@ -158,7 +132,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 GDTNativeExpressAdView");
 }
 %end
 
@@ -172,7 +145,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 BUNativeAdView");
 }
 %end
 
@@ -186,23 +158,21 @@ static void ScanRuntimeClasses(NSString *keyword) {
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 BUMNativeAdView");
 }
 %end
 
 
 // ============================================================================
-// 3. 第三方 SDK 底层数据拦截 + 异步安全日志
+// 3. 第三方 SDK 底层数据拦截 (构造安全 NSError，绝不传 nil)
 // ============================================================================
 
 %hook ATNativeAD
 - (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
-    TweakLog(@"[Hook 触发] ATNativeAD 开始请求广告, PlacementID: %@", placement);
+    TweakLog(@"[Hook 触发] ATNativeAD 开始请求广告");
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
             [delegate didFailToLoadADWithPlacementID:placement error:safeError];
-            TweakLog(@"[Action] 已向 TopOn 抛出模拟失败回调");
         });
     }
 }
@@ -210,14 +180,13 @@ static void ScanRuntimeClasses(NSString *keyword) {
 
 %hook BUMNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    TweakLog(@"[Hook 触发] BUMNativeAdsManager 请求广告 Count: %lld", count);
+    TweakLog(@"[Hook 触发] BUMNativeAdsManager 请求广告");
     if ([self respondsToSelector:@selector(delegate)]) {
         id<BUMNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
             NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
             dispatch_async(dispatch_get_main_queue(), ^{
                 [delegate nativeAdsManager:self didFailWithError:safeError];
-                TweakLog(@"[Action] 已向 GroMore 抛出模拟失败回调");
             });
         }
     }
@@ -233,7 +202,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
             NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
             dispatch_async(dispatch_get_main_queue(), ^{
                 [delegate nativeExpressAdFailToLoad:self error:safeError];
-                TweakLog(@"[Action] 已向 广点通 抛出模拟失败回调");
             });
         }
     }
@@ -242,12 +210,12 @@ static void ScanRuntimeClasses(NSString *keyword) {
 
 
 // ============================================================================
-// 4. 酷安开屏拦截 (TXAd / GroMore / AnyThink)
+// 4. 酷安冷/热开屏拦截 (修复传 nil 导致的解包闪退)
 // ============================================================================
 
 %hook TXAdSplashManager
 - (void)getSplashAdsWithAdsDataBlock:(void (^)(id adsData))block {
-    TweakLog(@"[Hook 触发] 拦截酷安热启动开屏请求");
+    TweakLog(@"[Hook 触发] 拦截酷安 TXAd 热启动开屏");
     if (block) {
         block(nil);
     }
@@ -264,18 +232,36 @@ static void ScanRuntimeClasses(NSString *keyword) {
 
 %hook GMSplashAd
 - (void)loadAdData {
-    TweakLog(@"[Hook 触发] 拦截 GroMore 开屏加载");
+    TweakLog(@"[Hook 触发] 拦截 GroMore 开屏加载 (安全 NSError 回调)");
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate splashAd:(id)self didFailWithError:nil];
+            [self.delegate splashAd:(id)self didFailWithError:safeError]; // 👈 传递真实 NSError 避免 Swift 强解包崩溃
         });
+    }
+}
+- (void)loadAdDataWithMediaSlotConfigIDs:(id)a0 sign:(long long)a1 {
+    TweakLog(@"[Hook 触发] 拦截 GroMore 扩展开屏加载");
+    if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
+        NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate splashAd:(id)self didFailWithError:safeError];
+        });
+    }
+}
+- (void)showSplashViewInRootViewController:(id)a0 {
+    TweakLog(@"[Hook 触发] 阻断 GroMore 开屏展示");
+    if (self.delegate && [self.delegate respondsToSelector:@selector(splashAdDidClose:withType:)]) {
+        [self.delegate splashAdDidClose:(id)self withType:0];
+    } else if ([self respondsToSelector:@selector(removeSplashView)]) {
+        [self removeSplashView];
     }
 }
 %end
 
 
 // ============================================================================
-// 5. 插件入口 (启动日志 + Runtime 类盲搜)
+// 5. 插件入口
 // ============================================================================
 
 %ctor {
@@ -283,10 +269,6 @@ static void ScanRuntimeClasses(NSString *keyword) {
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(@"🎉 酷安 Tweak 成功注入并启动！");
-        
-        // 自动盲搜内存中所有包含 Splash 和 Ad 的类
-        ScanRuntimeClasses(@"Splash");
-        ScanRuntimeClasses(@"Ad");
+        TweakLog(@"🎉 酷安安全版去广告 Tweak 成功启动！");
     }];
 }
