@@ -1,5 +1,56 @@
 #import <UIKit/UIKit.h>
-#import "Debug.h" // 👈 引入调试头文件
+#import <objc/runtime.h>
+
+// ============================================================================
+// 0. 自包含调试日志与内存扫描模块 (无需额外的 Debug.h 文件)
+// ============================================================================
+
+static void TweakLog(NSString *format, ...) {
+    va_list args;
+    va_start(args, format);
+    NSString *msg = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+
+    // 1. 控制台实时输出
+    NSLog(@"[TweakDebug] %@", msg);
+
+    // 2. 写入 App 沙盒 Documents 目录 (100% 有读写权限，可用 Filza/文件 App 查看)
+    NSString *docPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *filePath = [docPath stringByAppendingPathComponent:@"TweakDebug.log"];
+
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    [formatter setDateFormat:@"HH:mm:ss"];
+    NSString *timeStr = [formatter stringFromDate:[NSDate date]];
+    NSString *logLine = [NSString stringWithFormat:@"[%@] %@\n", timeStr, msg];
+
+    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:filePath];
+    if (!fileHandle) {
+        [logLine writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    } else {
+        [fileHandle seekToEndOfFile];
+        [fileHandle writeData:[logLine dataUsingEncoding:NSUTF8StringEncoding]];
+        [fileHandle closeFile];
+    }
+}
+
+static void ScanRuntimeClasses(NSString *keyword) {
+    TweakLog(@"================ 开始扫描包含 [%@] 的 Runtime 类 ================", keyword);
+    int numClasses = objc_getClassList(NULL, 0);
+    if (numClasses <= 0) return;
+
+    Class *classes = (__unsafe_unretained Class *)malloc(sizeof(Class) * numClasses);
+    numClasses = objc_getClassList(classes, numClasses);
+
+    for (int i = 0; i < numClasses; i++) {
+        NSString *className = NSStringFromClass(classes[i]);
+        if ([className localizedCaseInsensitiveContainsString:keyword]) {
+            TweakLog(@"[Find Class] %@", className);
+        }
+    }
+    free(classes);
+    TweakLog(@"================ 扫描完成 ================");
+}
+
 
 // ============================================================================
 // 1. 前置接口声明
@@ -66,7 +117,7 @@
 
 
 // ============================================================================
-// 2. 原生 SDK 视图物理折叠 + 日志确认
+// 2. 原生 SDK 视图物理折叠 + 运行日志
 // ============================================================================
 
 %hook ABUNativeAdView
@@ -79,7 +130,7 @@
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 ABUNativeAdView (GroMore 原生视图)");
+    TweakLog(@"[Action] 成功物理隐形 ABUNativeAdView");
 }
 %end
 
@@ -93,7 +144,7 @@
 - (void)layoutSubviews { 
     %orig; 
     self.hidden = YES; 
-    TweakLog(@"[Action] 成功物理隐形 GDTUnifiedNativeAdView (广点通原生视图)");
+    TweakLog(@"[Action] 成功物理隐形 GDTUnifiedNativeAdView");
 }
 %end
 
@@ -224,7 +275,7 @@
 
 
 // ============================================================================
-// 5. 插件入口 (扫描内存类 + 加载日志)
+// 5. 插件入口 (启动日志 + Runtime 类盲搜)
 // ============================================================================
 
 %ctor {
@@ -234,7 +285,7 @@
                                                   usingBlock:^(NSNotification * _Nonnull note) {
         TweakLog(@"🎉 酷安 Tweak 成功注入并启动！");
         
-        // 自动扫描内存中带 Splash 和 Ad 关键字的类，帮助我们排查漏网之鱼
+        // 自动盲搜内存中所有包含 Splash 和 Ad 的类
         ScanRuntimeClasses(@"Splash");
         ScanRuntimeClasses(@"Ad");
     }];
