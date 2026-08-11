@@ -1,11 +1,10 @@
 #import <UIKit/UIKit.h>
-#import "Includes/Debug.h" // 👈 听编译器的，直接用这个路径！
+#import "../../Includes/Debug.h" 
 
 #define LOG_TAG @"Coolapk"
 
-
 // ============================================================================
-// 1. 前置接口声明
+// 1. 前置接口声明 (补全所有新老协议)
 // ============================================================================
 
 @protocol ATNativeADDelegate <NSObject>
@@ -40,6 +39,10 @@
 @end
 @interface BUNativeAdsManager : NSObject
 @end
+@interface GMNativeAdsManager : NSObject
+@end
+@interface CSJNativeAdsManager : NSObject
+@end
 @interface GDTNativeExpressAd : NSObject
 @end
 @interface GDTUnifiedNativeAd : NSObject
@@ -52,96 +55,14 @@
 @property (nonatomic, weak) id delegate;
 @end
 
-@interface ABUNativeAdView : UIView
-@end
-@interface GDTUnifiedNativeAdView : UIView
-@end
-@interface GDTNativeExpressAdView : UIView
-@end
-@interface BUNativeAdView : UIView
-@end
-@interface BUMNativeAdView : UIView
-@end
-
 
 // ============================================================================
-// 2. 原生 SDK 视图物理折叠
-// ============================================================================
-
-%hook ABUNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
-}
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
-}
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
-}
-%end
-
-%hook GDTUnifiedNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
-}
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
-}
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
-    TweakLog(LOG_TAG, @"[Action] 成功折叠 GDTUnifiedNativeAdView 广告卡片");
-}
-%end
-
-%hook GDTNativeExpressAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
-}
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
-}
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
-}
-%end
-
-%hook BUNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
-}
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
-}
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
-}
-%end
-
-%hook BUMNativeAdView
-- (CGSize)intrinsicContentSize { 
-    return CGSizeZero; 
-}
-- (CGSize)sizeThatFits:(CGSize)size { 
-    return CGSizeZero; 
-}
-- (void)layoutSubviews { 
-    %orig; 
-    self.hidden = YES; 
-}
-%end
-
-
-// ============================================================================
-// 3. 第三方 SDK 底层数据拦截
+// 2. 第三方 SDK 底层数据拦截 (全网段覆盖，杜绝白块)
 // ============================================================================
 
 %hook ATNativeAD
 - (void)loadADWithPlacementID:(id)placement extra:(id)extra delegate:(id<ATNativeADDelegate>)delegate {
-    TweakLog(LOG_TAG, @"[Hook 触发] ATNativeAD 开始请求广告");
+    TweakLog(LOG_TAG, @"[Hook 触发] ATNativeAD 开始请求");
     if (delegate && [delegate respondsToSelector:@selector(didFailToLoadADWithPlacementID:error:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -151,6 +72,7 @@
 }
 %end
 
+// 拦截所有穿山甲/GroMore的老版本请求
 %hook BUMNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
     TweakLog(LOG_TAG, @"[Hook 触发] BUMNativeAdsManager 请求广告");
@@ -166,6 +88,53 @@
 }
 %end
 
+// 拦截所有穿山甲/GroMore的新版本请求 (GM / CSJ / BU)
+%hook GMNativeAdsManager
+- (void)loadAdDataWithCount:(long long)count {
+    TweakLog(LOG_TAG, @"[Hook 触发] GMNativeAdsManager 请求广告");
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate nativeAdsManager:self didFailWithError:safeError];
+            });
+        }
+    }
+}
+%end
+
+%hook CSJNativeAdsManager
+- (void)loadAdDataWithCount:(long long)count {
+    TweakLog(LOG_TAG, @"[Hook 触发] CSJNativeAdsManager 请求广告");
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate nativeAdsManager:self didFailWithError:safeError];
+            });
+        }
+    }
+}
+%end
+
+%hook BUNativeAdsManager
+- (void)loadAdDataWithCount:(long long)count {
+    TweakLog(LOG_TAG, @"[Hook 触发] BUNativeAdsManager 请求广告");
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate nativeAdsManager:self didFailWithError:safeError];
+            });
+        }
+    }
+}
+%end
+
+// 拦截广点通老版请求
 %hook GDTNativeExpressAd
 - (void)loadAd {
     TweakLog(LOG_TAG, @"[Hook 触发] GDTNativeExpressAd 请求广告");
@@ -181,9 +150,25 @@
 }
 %end
 
+// 拦截广点通新版请求 (解决当前截图中留白块的罪魁祸首)
+%hook GDTUnifiedNativeAd
+- (void)loadAd {
+    TweakLog(LOG_TAG, @"[Hook 触发] GDTUnifiedNativeAd 请求广告");
+    if ([self respondsToSelector:@selector(delegate)]) {
+        id<GDTUnifiedNativeAdDelegate> delegate = [self valueForKey:@"delegate"];
+        if (delegate && [delegate respondsToSelector:@selector(gdt_unifiedNativeAd:didFailWithError:)]) {
+            NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [delegate gdt_unifiedNativeAd:self didFailWithError:safeError];
+            });
+        }
+    }
+}
+%end
+
 
 // ============================================================================
-// 4. 酷安冷/热开屏拦截
+// 3. 酷安冷/热开屏拦截
 // ============================================================================
 
 %hook TXAdSplashManager
@@ -205,7 +190,7 @@
 
 %hook GMSplashAd
 - (void)loadAdData {
-    TweakLog(LOG_TAG, @"[Hook 触发] 拦截 GroMore 开屏加载 (安全 NSError 回调)");
+    TweakLog(LOG_TAG, @"[Hook 触发] 拦截 GroMore 开屏加载");
     if (self.delegate && [self.delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
         NSError *safeError = [NSError errorWithDomain:@"CoolapkAdBlock" code:404 userInfo:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -234,19 +219,18 @@
 
 
 // ============================================================================
-// 5. 插件入口 (冷启动清空旧日志)
+// 4. 插件入口
 // ============================================================================
 
 %ctor {
     ResetDebugLog(LOG_TAG);
     
-    // 👈 顺便调用一下它，骗过编译器，防止抛出 unused-function 报错！
     ScanRuntimeClasses(LOG_TAG, @"Splash");
     
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 酷安去广告插件已启动，日志自动重置成功！");
+        TweakLog(LOG_TAG, @"🎉 酷安去广告插件已启动，已修复白块问题！");
     }];
 }
