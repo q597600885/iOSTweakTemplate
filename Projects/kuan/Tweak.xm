@@ -1,5 +1,5 @@
 #import <UIKit/UIKit.h>
-#import "../../Includes/Debug.h" 
+#import "Includes/Debug.h" // 👈 听编译器的，就是这个路径！
 
 #define LOG_TAG @"Coolapk"
 
@@ -225,6 +225,7 @@
 %ctor {
     ResetDebugLog(LOG_TAG);
     
+    // 👈 调用一次，防止触发 unused-function 报错
     ScanRuntimeClasses(LOG_TAG, @"Splash");
     
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
