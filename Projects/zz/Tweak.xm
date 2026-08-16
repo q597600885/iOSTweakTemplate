@@ -29,7 +29,7 @@ static NSMutableSet *alertedSet;
             return;
         }
         
-        // 如果包含 "系统" 或 "iOS" 字眼，命中率更高（转转可能会显示 "系统版本: iOS 17.1"）
+        // 如果包含 "系统" 或 "iOS" 字眼，命中率更高
         if ([text.lowercaseString containsString:@"ios"] || [text containsString:@"系统"] || [text containsString:@"版本"]) {
             
             if ([alertedSet containsObject:text]) {
@@ -42,19 +42,37 @@ static NSMutableSet *alertedSet;
             
             // 切换到主线程弹窗
             dispatch_async(dispatch_get_main_queue(), ^{
-                // 获取当前最顶层的 UIViewController
                 UIWindow *keyWindow = nil;
-                for (UIWindow *window in [UIApplication sharedApplication].windows) {
-                    if (window.isKeyWindow) {
-                        keyWindow = window;
-                        break;
+                
+                // 修复: 适配 iOS 15+ 的 UIWindowScene 窗口获取方式
+                for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                    if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
+                        UIWindowScene *windowScene = (UIWindowScene *)scene;
+                        for (UIWindow *window in windowScene.windows) {
+                            if (window.isKeyWindow) {
+                                keyWindow = window;
+                                break;
+                            }
+                        }
                     }
                 }
                 
+                // 兜底方案，为了绝对安全包裹忽略警告的宏
+                if (!keyWindow) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                    keyWindow = [UIApplication sharedApplication].keyWindow;
+#pragma clang diagnostic pop
+                }
+                
+                if (!keyWindow) return;
+
                 UIViewController *topVC = keyWindow.rootViewController;
                 while (topVC.presentedViewController) {
                     topVC = topVC.presentedViewController;
                 }
+                
+                if (!topVC) return;
                 
                 UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"🎯 天命机降临" 
                                                                                message:[NSString stringWithFormat:@"发现目标:\n%@", text] 
