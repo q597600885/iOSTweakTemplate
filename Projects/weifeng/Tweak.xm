@@ -4,7 +4,7 @@
 #define LOG_TAG @"WeifengAdBlock"
 
 // ============================================================================
-// 1. 接口与协议声明 (补全声明，彻底防止编译报错)
+// 1. 接口与协议声明 (补全所有未声明的方法和选择器，彻底杜绝语法错误)
 // ============================================================================
 
 @protocol BUNativeAdsManagerDelegate <NSObject>
@@ -40,6 +40,17 @@
 @protocol GDTSplashAdDelegate <NSObject>
 @optional
 - (void)splashAdFailToPresent:(id)splashAd withError:(NSError *)error;
+@end
+
+// 🌟 新增：补全百度联盟的代理声明，解决未声明选择器导致的语法错误
+@protocol BaiduMobAdNativeDelegate <NSObject>
+@optional
+- (void)nativeAdObjectsFailLoad:(id)reason;
+@end
+
+@protocol BaiduMobAdSplashDelegate <NSObject>
+@optional
+- (void)splashDidFailToLoad:(id)splash;
 @end
 
 @interface BUNativeAdsManager : NSObject
@@ -175,13 +186,10 @@
 - (void)requestNativeAds {
     TweakLog(LOG_TAG, @"[Hook] 拦截 BaiduMobAdNative");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<BaiduMobAdNativeDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdObjectsFailLoad:)]) {
             dispatch_async(dispatch_get_main_queue(), ^{ 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                [delegate performSelector:@selector(nativeAdObjectsFailLoad:) withObject:nil]; 
-#pragma clang diagnostic pop
+                [delegate nativeAdObjectsFailLoad:nil]; 
             });
         }
     }
@@ -192,13 +200,10 @@
 - (void)loadAndDisplay {
     TweakLog(LOG_TAG, @"[Hook] 拦截 BaiduMobAdSplash");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<BaiduMobAdSplashDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(splashDidFailToLoad:)]) {
             dispatch_async(dispatch_get_main_queue(), ^{ 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                [delegate performSelector:@selector(splashDidFailToLoad:) withObject:self]; 
-#pragma clang diagnostic pop
+                [delegate splashDidFailToLoad:self]; 
             });
         }
     }
@@ -212,11 +217,11 @@
 %end
 
 %hook GADInterstitialAd
-// ⭐️ 核心修复：把带逗号的 Block 参数先替换为 id 类型，绕过 Logos 的解析 Bug
 + (void)loadWithAdUnitID:(id)adUnitID request:(id)request completionHandler:(id)completionHandler {
     TweakLog(LOG_TAG, @"[Hook] 拦截 GADInterstitialAd");
     if (completionHandler) {
-        void (^block)(id, NSError *) = completionHandler;
+        // 🌟 修复：安全强转 Block，杜绝类型不匹配错误
+        void (^block)(id, NSError *) = (void (^)(id, NSError *))completionHandler;
         NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
         dispatch_async(dispatch_get_main_queue(), ^{ block(nil, error); });
     }
@@ -230,7 +235,7 @@
 %ctor {
     ResetDebugLog(LOG_TAG);
     
-    // 骗过编译器，防止 unused-function 报错
+    // 调用一次，防止 unused-function 报错
     ScanRuntimeClasses(LOG_TAG, @"AdManager");
     
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
