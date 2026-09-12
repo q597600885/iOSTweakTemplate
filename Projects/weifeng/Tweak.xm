@@ -71,7 +71,7 @@
 // ============================================================================
 
 %hook BUNativeAdsManager
-- (void)loadAdDataWithCount:(long long)count {
+- (void)loadAdDataWithCount:(NSInteger)count {
     TweakLog(LOG_TAG, @"[Hook] 拦截 BUNativeAdsManager");
     if ([self respondsToSelector:@selector(delegate)]) {
         id<BUNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
@@ -84,7 +84,7 @@
 %end
 
 %hook CSJNativeAdsManager
-- (void)loadAdDataWithCount:(long long)count {
+- (void)loadAdDataWithCount:(NSInteger)count {
     TweakLog(LOG_TAG, @"[Hook] 拦截 CSJNativeAdsManager");
     if ([self respondsToSelector:@selector(delegate)]) {
         id<CSJNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
@@ -97,7 +97,7 @@
 %end
 
 %hook ABUNativeAdsManager
-- (void)loadAdDataWithCount:(long long)count {
+- (void)loadAdDataWithCount:(NSInteger)count {
     TweakLog(LOG_TAG, @"[Hook] 拦截 ABUNativeAdsManager");
     if ([self respondsToSelector:@selector(delegate)]) {
         id<ABUNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
@@ -212,11 +212,13 @@
 %end
 
 %hook GADInterstitialAd
-+ (void)loadWithAdUnitID:(id)adUnitID request:(id)request completionHandler:(void (^)(id ad, NSError *error))completionHandler {
+// ⭐️ 核心修复：把带逗号的 Block 参数先替换为 id 类型，绕过 Logos 的解析 Bug
++ (void)loadWithAdUnitID:(id)adUnitID request:(id)request completionHandler:(id)completionHandler {
     TweakLog(LOG_TAG, @"[Hook] 拦截 GADInterstitialAd");
     if (completionHandler) {
+        void (^block)(id, NSError *) = completionHandler;
         NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-        dispatch_async(dispatch_get_main_queue(), ^{ completionHandler(nil, error); });
+        dispatch_async(dispatch_get_main_queue(), ^{ block(nil, error); });
     }
 }
 %end
@@ -235,6 +237,6 @@
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 威锋去广告插件已启动！");
+        TweakLog(LOG_TAG, @"🎉 威锋全平台去广告插件已启动！");
     }];
 }
