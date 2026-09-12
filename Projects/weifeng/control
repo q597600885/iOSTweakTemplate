@@ -1,0 +1,9 @@
+Package: com.111.weifeng
+Name: weifeng
+Depends: mobilesubstrate (>= 0.9.5000)
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: An awesome Tweak created via Python Script!
+Maintainer: 111
+Author: 111
+Section: Tweaks
