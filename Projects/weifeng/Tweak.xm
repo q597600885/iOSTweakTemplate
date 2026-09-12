@@ -1,24 +1,83 @@
 #import <UIKit/UIKit.h>
-// 如果你有我们之前配置好的 Debug.h，可以取消下面这行的注释
-// #import "../../Includes/Debug.h"
+#import "Includes/Debug.h" 
 
-#define LOG_TAG @"FengAppAdBlock"
+#define LOG_TAG @"WeifengAdBlock"
 
 // ============================================================================
-// 1. 穿山甲 (Pangle) / 穿山甲聚合 (GroMore) 拦截
-// 涉及类：BUNativeAdsManager, CSJNativeAdsManager, ABUNativeAdsManager, ABUSplashAd 等
+// 1. 接口与协议声明 (补全声明，彻底防止编译报错)
+// ============================================================================
+
+@protocol BUNativeAdsManagerDelegate <NSObject>
+@optional
+- (void)nativeAdsManager:(id)manager didFailWithError:(NSError *)error;
+@end
+
+@protocol CSJNativeAdsManagerDelegate <NSObject>
+@optional
+- (void)nativeAdsManager:(id)manager didFailWithError:(NSError *)error;
+@end
+
+@protocol ABUNativeAdsManagerDelegate <NSObject>
+@optional
+- (void)nativeAdsManager:(id)manager didFailWithError:(NSError *)error;
+@end
+
+@protocol ABUSplashAdDelegate <NSObject>
+@optional
+- (void)splashAd:(id)ad didFailWithError:(NSError *)error;
+@end
+
+@protocol GDTUnifiedNativeAdDelegate <NSObject>
+@optional
+- (void)gdt_unifiedNativeAd:(id)unifiedNativeAd didFailWithError:(NSError *)error;
+@end
+
+@protocol GDTNativeExpressAdDelegete <NSObject>
+@optional
+- (void)nativeExpressAdFailToLoad:(id)nativeExpressAd error:(NSError *)error;
+@end
+
+@protocol GDTSplashAdDelegate <NSObject>
+@optional
+- (void)splashAdFailToPresent:(id)splashAd withError:(NSError *)error;
+@end
+
+@interface BUNativeAdsManager : NSObject
+@end
+@interface CSJNativeAdsManager : NSObject
+@end
+@interface ABUNativeAdsManager : NSObject
+@end
+@interface ABUSplashAd : NSObject
+@end
+@interface GDTUnifiedNativeAd : NSObject
+@end
+@interface GDTNativeExpressAd : NSObject
+@end
+@interface GDTSplashAd : NSObject
+@end
+@interface BaiduMobAdNative : NSObject
+@end
+@interface BaiduMobAdSplash : NSObject
+@end
+@interface GADBannerView : UIView
+@end
+@interface GADInterstitialAd : NSObject
+@end
+
+
+// ============================================================================
+// 2. 穿山甲 (Pangle) / 穿山甲聚合 (GroMore) 拦截
 // ============================================================================
 
 %hook BUNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    // NSLog(@"[%@] 拦截 BU 穿山甲原生广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 BUNativeAdsManager");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<BUNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate nativeAdsManager:self didFailWithError:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate nativeAdsManager:self didFailWithError:error]; });
         }
     }
 }
@@ -26,14 +85,12 @@
 
 %hook CSJNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    // NSLog(@"[%@] 拦截 CSJ 穿山甲原生广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 CSJNativeAdsManager");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<CSJNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate nativeAdsManager:self didFailWithError:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate nativeAdsManager:self didFailWithError:error]; });
         }
     }
 }
@@ -41,14 +98,12 @@
 
 %hook ABUNativeAdsManager
 - (void)loadAdDataWithCount:(long long)count {
-    // NSLog(@"[%@] 拦截 ABU 穿山甲聚合原生广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 ABUNativeAdsManager");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<ABUNativeAdsManagerDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdsManager:didFailWithError:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate nativeAdsManager:self didFailWithError:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate nativeAdsManager:self didFailWithError:error]; });
         }
     }
 }
@@ -56,14 +111,12 @@
 
 %hook ABUSplashAd
 - (void)loadAdData {
-    // NSLog(@"[%@] 拦截 ABU 穿山甲聚合开屏广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 ABUSplashAd");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<ABUSplashAdDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(splashAd:didFailWithError:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate performSelector:@selector(splashAd:didFailWithError:) withObject:self withObject:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate splashAd:self didFailWithError:error]; });
         }
     }
 }
@@ -71,20 +124,17 @@
 
 
 // ============================================================================
-// 2. 腾讯广点通 (GDT) 拦截
-// 涉及类：GDTUnifiedNativeAd, GDTNativeExpressAd, GDTSplashAd
+// 3. 腾讯广点通 (GDT) 拦截
 // ============================================================================
 
 %hook GDTUnifiedNativeAd
 - (void)loadAd {
-    // NSLog(@"[%@] 拦截广点通原生广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 GDTUnifiedNativeAd");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<GDTUnifiedNativeAdDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(gdt_unifiedNativeAd:didFailWithError:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate performSelector:@selector(gdt_unifiedNativeAd:didFailWithError:) withObject:self withObject:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate gdt_unifiedNativeAd:self didFailWithError:error]; });
         }
     }
 }
@@ -92,14 +142,12 @@
 
 %hook GDTNativeExpressAd
 - (void)loadAd {
-    // NSLog(@"[%@] 拦截广点通模板广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 GDTNativeExpressAd");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<GDTNativeExpressAdDelegete> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeExpressAdFailToLoad:error:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate performSelector:@selector(nativeExpressAdFailToLoad:error:) withObject:self withObject:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate nativeExpressAdFailToLoad:self error:error]; });
         }
     }
 }
@@ -107,14 +155,12 @@
 
 %hook GDTSplashAd
 - (void)loadAd {
-    // NSLog(@"[%@] 拦截广点通开屏广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 GDTSplashAd");
     if ([self respondsToSelector:@selector(delegate)]) {
-        id delegate = [self valueForKey:@"delegate"];
+        id<GDTSplashAdDelegate> delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(splashAdFailToPresent:withError:)]) {
             NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate performSelector:@selector(splashAdFailToPresent:withError:) withObject:self withObject:error];
-            });
+            dispatch_async(dispatch_get_main_queue(), ^{ [delegate splashAdFailToPresent:self withError:error]; });
         }
     }
 }
@@ -122,19 +168,20 @@
 
 
 // ============================================================================
-// 3. 百度联盟 (BaiduMobAd) 拦截
-// 涉及类：BaiduMobAdNative, BaiduMobAdSplash
+// 4. 百度联盟 (BaiduMobAd) & 谷歌 (Google AdMob) 拦截
 // ============================================================================
 
 %hook BaiduMobAdNative
 - (void)requestNativeAds {
-    // NSLog(@"[%@] 拦截百度联盟原生广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 BaiduMobAdNative");
     if ([self respondsToSelector:@selector(delegate)]) {
         id delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(nativeAdObjectsFailLoad:)]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // 百度失败回调通常只需通知错误码或直接调用
-                [delegate performSelector:@selector(nativeAdObjectsFailLoad:) withObject:@"404"];
+            dispatch_async(dispatch_get_main_queue(), ^{ 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [delegate performSelector:@selector(nativeAdObjectsFailLoad:) withObject:nil]; 
+#pragma clang diagnostic pop
             });
         }
     }
@@ -143,66 +190,51 @@
 
 %hook BaiduMobAdSplash
 - (void)loadAndDisplay {
-    // NSLog(@"[%@] 拦截百度联盟开屏广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 BaiduMobAdSplash");
     if ([self respondsToSelector:@selector(delegate)]) {
         id delegate = [self valueForKey:@"delegate"];
         if (delegate && [delegate respondsToSelector:@selector(splashDidFailToLoad:)]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [delegate performSelector:@selector(splashDidFailToLoad:) withObject:self];
+            dispatch_async(dispatch_get_main_queue(), ^{ 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [delegate performSelector:@selector(splashDidFailToLoad:) withObject:self]; 
+#pragma clang diagnostic pop
             });
         }
     }
 }
 %end
 
-
-// ============================================================================
-// 4. 谷歌广告 (Google AdMob) 拦截
-// 涉及类：GADBannerView, GADInterstitialAd
-// ============================================================================
-
 %hook GADBannerView
 - (void)loadRequest:(id)request {
-    // NSLog(@"[%@] 拦截 AdMob 横幅广告请求", LOG_TAG);
-    // 直接 return 阻断请求，不让它发出网络包
+    TweakLog(LOG_TAG, @"[Hook] 拦截 GADBannerView");
 }
 %end
 
 %hook GADInterstitialAd
 + (void)loadWithAdUnitID:(id)adUnitID request:(id)request completionHandler:(void (^)(id ad, NSError *error))completionHandler {
-    // NSLog(@"[%@] 拦截 AdMob 插屏广告请求", LOG_TAG);
+    TweakLog(LOG_TAG, @"[Hook] 拦截 GADInterstitialAd");
     if (completionHandler) {
         NSError *error = [NSError errorWithDomain:@"AdBlock" code:404 userInfo:nil];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            completionHandler(nil, error);
-        });
+        dispatch_async(dispatch_get_main_queue(), ^{ completionHandler(nil, error); });
     }
 }
 %end
 
-
 // ============================================================================
-// 5. 内部广告包装类拦截 (针对 fengapp 自身的控制器)
-// 涉及类：FengAdManager, AdvertisingViewModel 等
+// 5. 插件入口
 // ============================================================================
 
-// 注意：由于 fengapp 是 Swift 编写的，类名在运行时会被重整 (Mangle)
-// 这里使用任意字符串匹配进行 Hook，需确保 Theos 支持 Swift 混编，或者转而隐藏 UI
-
-%hook _TtC7fengapp13FengAdManager
-- (void)loadAd {
-    // NSLog(@"[%@] 阻断内部广告管理器加载", LOG_TAG);
+%ctor {
+    ResetDebugLog(LOG_TAG);
+    
+    // 骗过编译器，防止 unused-function 报错
+    ScanRuntimeClasses(LOG_TAG, @"AdManager");
+    
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                      object:nil 
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+        TweakLog(LOG_TAG, @"🎉 威锋去广告插件已启动！");
+    }];
 }
-%end
-
-%hook _TtC7fengapp13FengAdLoader
-- (void)requestAd {
-    // NSLog(@"[%@] 阻断内部广告加载器", LOG_TAG);
-}
-%end
-
-%hook _TtC7fengapp19AdvertisingViewModel
-- (void)fetchAds {
-    // NSLog(@"[%@] 阻断广告视图模型拉取数据", LOG_TAG);
-}
-%end
