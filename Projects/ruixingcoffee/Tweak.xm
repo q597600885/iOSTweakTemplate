@@ -60,10 +60,13 @@
     // 每次 App 冷启动，清空之前的沙盒日志
     ResetDebugLog(LOG_TAG);
     
+    // 🌟 C语言底层魔法：仅取函数内存地址并抛弃，完美骗过编译器，绝对0耗时！
+    (void)ScanRuntimeClasses;
+    
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 瑞幸秒进去广告插件加载完毕！0 毫秒无损耗版已就绪！");
+        TweakLog(LOG_TAG, @"🎉 瑞幸秒进去广告插件加载完毕！0 毫秒无损耗带日志版已就绪！");
     }];
 }
