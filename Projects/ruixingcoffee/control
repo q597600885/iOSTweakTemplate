@@ -1,0 +1,9 @@
+Package: com.q597600885.ruixingcoffee
+Name: ruixingcoffee
+Depends: mobilesubstrate (>= 0.9.5000)
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: An awesome Tweak created via Python Script!
+Maintainer: q597600885
+Author: q597600885
+Section: Tweaks
