@@ -1,69 +1,48 @@
 #import <UIKit/UIKit.h>
-#import <objc/runtime.h>
-#import "Includes/Debug.h" 
-
-#define LOG_TAG @"LuckinAdBlock"
 
 // ============================================================================
-// 1. 辅助分析工具：提取运行时的所有内部方法
-// ============================================================================
-
-static void PrintClassMethods(NSString *className) {
-    TweakLog(LOG_TAG, @"========== 提取 [%@] 的所有内部方法 ==========", className);
-    Class cls = NSClassFromString(className);
-    if (!cls) {
-        TweakLog(LOG_TAG, @"未找到类: %@", className);
-        return;
-    }
-    unsigned int count = 0;
-    Method *methods = class_copyMethodList(cls, &count);
-    for (unsigned int i = 0; i < count; i++) {
-        SEL sel = method_getName(methods[i]);
-        TweakLog(LOG_TAG, @"[Method] %@", NSStringFromSelector(sel));
-    }
-    free(methods);
-}
-
-// ============================================================================
-// 2. 接口与类声明
+// 1. 接口与类声明
 // ============================================================================
 
 @interface LKAAdvertView : UIView
-@end
-
-@interface LCLaunchScreenViewController : UIViewController
+- (void)jumpClick;
+- (void)endAction;
 @end
 
 // ============================================================================
-// 3. 临时物理隐藏 (保证测试时眼前清爽)
+// 2. 逻辑层 0 毫秒击杀 (LKAAdvertView)
 // ============================================================================
 
 %hook LKAAdvertView
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES;
+
+// 阻断 1：拦截视图初始化，强行将视图宽高归零并隐藏
+- (instancetype)initWithFrame:(CGRect)frame EndAdBlock:(id)block {
+    self = %orig(CGRectZero, block);
+    if (self) {
+        self.hidden = YES;
+        self.alpha = 0;
+    }
+    return self;
 }
+
+// 阻断 2：拦截广告网络请求源头，并在 0 毫秒瞬间主动调用“跳过”和“结束”逻辑
+- (void)requestAdData {
+    // ⚠️ 注意：这里故意不调用 %orig，直接把网络请求掐死！
+    
+    // 模拟用户在 0 毫秒时疯狂点击了“跳过”按钮
+    if ([self respondsToSelector:@selector(jumpClick)]) {
+        [self jumpClick];
+    }
+    
+    // 直接通知底层逻辑：广告已经播放结束，赶紧给我切主界面
+    if ([self respondsToSelector:@selector(endAction)]) {
+        [self endAction];
+    }
+}
+
+// 阻断 3：彻底废掉后台的倒计时器，杜绝任何延迟
+- (void)startTimer {
+    // 同样不调用 %orig，倒计时器永远不会启动
+}
+
 %end
-
-// ============================================================================
-// 4. 插件入口与探针执行
-// ============================================================================
-
-%ctor {
-    // 每次冷启动清空旧日志
-    ResetDebugLog(LOG_TAG);
-    
-    // ⭐️ 核心探针 1：打印控制器和视图的所有方法，寻找"跳过(skip)"、"关闭(close/dismiss)"函数的真名
-    PrintClassMethods(@"LCLaunchScreenViewController");
-    PrintClassMethods(@"LKAAdvertView");
-    
-    // ⭐️ 核心探针 2：上次只搜了 Advert，这次补搜一下 Splash (开屏) 相关的隐藏类
-    ScanRuntimeClasses(LOG_TAG, @"Splash");
-    
-    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
-                                                      object:nil 
-                                                       queue:[NSOperationQueue mainQueue]
-                                                  usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 瑞幸跳过方法探针已启动，正在疯狂提取数据...");
-    }];
-}
