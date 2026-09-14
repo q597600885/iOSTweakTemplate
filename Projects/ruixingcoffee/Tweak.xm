@@ -1,4 +1,7 @@
 #import <UIKit/UIKit.h>
+#import "Includes/Debug.h" 
+
+#define LOG_TAG @"LuckinAdBlock"
 
 // ============================================================================
 // 1. 接口与类声明
@@ -27,22 +30,40 @@
 
 // 阻断 2：拦截广告网络请求源头，并在 0 毫秒瞬间主动调用“跳过”和“结束”逻辑
 - (void)requestAdData {
-    // ⚠️ 注意：这里故意不调用 %orig，直接把网络请求掐死！
+    TweakLog(LOG_TAG, @"[Hook] 成功拦截 requestAdData 广告请求！");
     
     // 模拟用户在 0 毫秒时疯狂点击了“跳过”按钮
     if ([self respondsToSelector:@selector(jumpClick)]) {
+        TweakLog(LOG_TAG, @"[Action] 主动触发 jumpClick 跳过操作");
         [self jumpClick];
     }
     
     // 直接通知底层逻辑：广告已经播放结束，赶紧给我切主界面
     if ([self respondsToSelector:@selector(endAction)]) {
+        TweakLog(LOG_TAG, @"[Action] 主动触发 endAction 结束操作");
         [self endAction];
     }
 }
 
 // 阻断 3：彻底废掉后台的倒计时器，杜绝任何延迟
 - (void)startTimer {
-    // 同样不调用 %orig，倒计时器永远不会启动
+    TweakLog(LOG_TAG, @"[Hook] 成功拦截并废弃了 startTimer 倒计时器！");
 }
 
 %end
+
+// ============================================================================
+// 3. 插件入口与日志初始化
+// ============================================================================
+
+%ctor {
+    // 每次 App 冷启动，清空之前的沙盒日志
+    ResetDebugLog(LOG_TAG);
+    
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                      object:nil 
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+        TweakLog(LOG_TAG, @"🎉 瑞幸秒进去广告插件加载完毕！0 毫秒无损耗版已就绪！");
+    }];
+}
