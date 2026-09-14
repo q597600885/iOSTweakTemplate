@@ -20,7 +20,6 @@
 %hook LKAAdvertView
 
 - (instancetype)initWithFrame:(CGRect)frame {
-    // 强制将广告视图初始化为 0 大小，并设为隐藏
     self = %orig(CGRectZero);
     if (self) {
         self.hidden = YES;
@@ -71,6 +70,9 @@
 %ctor {
     // 每次 App 冷启动，清空之前的沙盒日志
     ResetDebugLog(LOG_TAG);
+    
+    // 🌟 核心修复：顺便扫描一下带有 Advert 的类，骗过编译器防报错
+    ScanRuntimeClasses(LOG_TAG, @"Advert");
     
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
