@@ -1,9 +1,9 @@
 #import <UIKit/UIKit.h>
-#import "Includes/Debug.h" 
 
-// 🌟 核心魔法：直接让编译器忽略“未使用函数”的警告，坚决不运行耗时扫描！
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
+#import "Includes/Debug.h"
+#pragma clang diagnostic pop
 
 #define LOG_TAG @"LuckinAdBlock"
 
@@ -30,7 +30,7 @@
 @end
 
 // ============================================================================
-// 2. 开屏广告：逻辑层 0 毫秒击杀
+// 2. 开屏广告拦截 (0 毫秒跳过)
 // ============================================================================
 
 %hook LKAAdvertView
@@ -63,10 +63,11 @@
 %end
 
 // ============================================================================
-// 3. H5 与原生营销弹窗拦截
+// 3. H5 与原生营销弹窗拦截 (标准分行书写，消除语法解析错误)
 // ============================================================================
 
 %hook LCWebPopupContainerViewController
+
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
     self.view.hidden = YES;
@@ -78,35 +79,54 @@
         TweakLog(LOG_TAG, @"[Action] 主动销毁 H5 弹窗控制器");
     }
 }
+
 %end
 
 %hook LuckinExclusiveCouponPopView
-- (void)show { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinExclusiveCouponPopView show！"); }
-- (void)showInView:(id)view { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinExclusiveCouponPopView showInView！"); }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+
+- (void)show {
+    TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinExclusiveCouponPopView show！");
+}
+
+- (void)showInView:(id)view {
+    TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinExclusiveCouponPopView showInView！");
+}
+
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+}
+
 %end
 
 %hook LuckinMenuRewardPopView
-- (void)show { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinMenuRewardPopView show！"); }
-- (void)showInView:(id)view { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinMenuRewardPopView showInView！"); }
-- (void)layoutSubviews { %orig; self.hidden = YES; }
+
+- (void)show {
+    TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinMenuRewardPopView show！");
+}
+
+- (void)showInView:(id)view {
+    TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinMenuRewardPopView showInView！");
+}
+
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+}
+
 %end
 
 // ============================================================================
-// 4. 模块就绪日志 (去除了所有耗时的盲搜代码)
+// 4. 插件入口与轻量初始化
 // ============================================================================
 
 %ctor {
-    // 仅保留极其轻量级的文本清空操作
     ResetDebugLog(LOG_TAG);
     
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 瑞幸【开屏秒进 + 弹窗全杀】极致性能版已就绪！");
+        TweakLog(LOG_TAG, @"🎉 瑞幸【开屏秒进 + 弹窗全杀】极速稳定版加载完成！");
     }];
 }
-
-// 恢复编译器的警告设置
-#pragma clang diagnostic pop
