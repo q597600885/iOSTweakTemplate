@@ -4,8 +4,26 @@
 #define LOG_TAG @"LuckinAdBlock"
 
 // ============================================================================
-// 1. 核心拦截：H5 营销网页弹窗容器 (拦截截图中的 WKCompositingView)
+// 1. 接口与类声明 (核心修复：补齐类的继承关系，消除编译报错)
 // ============================================================================
+
+@interface LCWebPopupContainerViewController : UIViewController
+@end
+
+@interface LuckinExclusiveCouponPopView : UIView
+- (void)show;
+- (void)showInView:(id)view;
+@end
+
+@interface LuckinMenuRewardPopView : UIView
+- (void)show;
+- (void)showInView:(id)view;
+@end
+
+// ============================================================================
+// 2. 核心拦截：H5 营销网页弹窗容器
+// ============================================================================
+
 %hook LCWebPopupContainerViewController
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -27,7 +45,7 @@
 %end
 
 // ============================================================================
-// 2. 备选拦截：原生专属新人礼/奖励弹窗 (防漏网之鱼)
+// 3. 备选拦截：原生专属新人礼/奖励弹窗 (防漏网之鱼)
 // ============================================================================
 
 %hook LuckinExclusiveCouponPopView
@@ -59,7 +77,7 @@
 %end
 
 // ============================================================================
-// 3. 模块就绪日志
+// 4. 模块就绪日志
 // ============================================================================
 %ctor {
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
