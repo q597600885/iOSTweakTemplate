@@ -4,69 +4,68 @@
 #define LOG_TAG @"LuckinAdBlock"
 
 // ============================================================================
-// 1. 接口与类声明
+// 1. 核心拦截：H5 营销网页弹窗容器 (拦截截图中的 WKCompositingView)
 // ============================================================================
+%hook LCWebPopupContainerViewController
 
-@interface LKAAdvertView : UIView
-- (void)jumpClick;
-- (void)endAction;
-@end
-
-// ============================================================================
-// 2. 逻辑层 0 毫秒击杀 (LKAAdvertView)
-// ============================================================================
-
-%hook LKAAdvertView
-
-// 阻断 1：拦截视图初始化，强行将视图宽高归零并隐藏
-- (instancetype)initWithFrame:(CGRect)frame EndAdBlock:(id)block {
-    self = %orig(CGRectZero, block);
-    if (self) {
-        self.hidden = YES;
-        self.alpha = 0;
-    }
-    return self;
-}
-
-// 阻断 2：拦截广告网络请求源头，并在 0 毫秒瞬间主动调用“跳过”和“结束”逻辑
-- (void)requestAdData {
-    TweakLog(LOG_TAG, @"[Hook] 成功拦截 requestAdData 广告请求！");
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
     
-    // 模拟用户在 0 毫秒时疯狂点击了“跳过”按钮
-    if ([self respondsToSelector:@selector(jumpClick)]) {
-        TweakLog(LOG_TAG, @"[Action] 主动触发 jumpClick 跳过操作");
-        [self jumpClick];
-    }
+    // 0 毫秒物理防漏：直接切断渲染，防止白屏闪烁
+    self.view.hidden = YES;
+    self.view.alpha = 0;
     
-    // 直接通知底层逻辑：广告已经播放结束，赶紧给我切主界面
-    if ([self respondsToSelector:@selector(endAction)]) {
-        TweakLog(LOG_TAG, @"[Action] 主动触发 endAction 结束操作");
-        [self endAction];
+    TweakLog(LOG_TAG, @"[Hook] 成功拦截 LCWebPopupContainerViewController (H5活动弹窗)！");
+    
+    // 0 毫秒逻辑击杀：模拟点击关闭，立刻销毁控制器，把焦点还给主界面
+    if ([self respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
+        [self dismissViewControllerAnimated:NO completion:nil];
+        TweakLog(LOG_TAG, @"[Action] 主动触发 dismissViewController 销毁 H5 弹窗");
     }
-}
-
-// 阻断 3：彻底废掉后台的倒计时器，杜绝任何延迟
-- (void)startTimer {
-    TweakLog(LOG_TAG, @"[Hook] 成功拦截并废弃了 startTimer 倒计时器！");
 }
 
 %end
 
 // ============================================================================
-// 3. 插件入口与日志初始化
+// 2. 备选拦截：原生专属新人礼/奖励弹窗 (防漏网之鱼)
 // ============================================================================
 
+%hook LuckinExclusiveCouponPopView
+
+// 逻辑层：拦截自定义 View 的弹出方法，让它从根源无法触发
+- (void)show {
+    TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinExclusiveCouponPopView show 动作！");
+}
+- (void)showInView:(id)view {
+    TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinExclusiveCouponPopView showInView 动作！");
+}
+
+// 物理层：兜底防漏，一旦尝试绘制直接隐藏
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+}
+%end
+
+%hook LuckinMenuRewardPopView
+
+- (void)show { TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinMenuRewardPopView show！"); }
+- (void)showInView:(id)view { TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinMenuRewardPopView showInView！"); }
+
+- (void)layoutSubviews {
+    %orig;
+    self.hidden = YES;
+}
+%end
+
+// ============================================================================
+// 3. 模块就绪日志
+// ============================================================================
 %ctor {
-    // 每次 App 冷启动，清空之前的沙盒日志
-    ResetDebugLog(LOG_TAG);
-    
-    // 🌟 C语言底层魔法：仅取函数内存地址并抛弃，完美骗过编译器，绝对0耗时！
-    (void)ScanRuntimeClasses;
-    
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 瑞幸秒进去广告插件加载完毕！0 毫秒无损耗带日志版已就绪！");
+        TweakLog(LOG_TAG, @"🎉 瑞幸网页活动弹窗/新人礼拦截模块已就绪！");
     }];
 }
