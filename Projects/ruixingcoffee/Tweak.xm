@@ -1,11 +1,20 @@
 #import <UIKit/UIKit.h>
 #import "Includes/Debug.h" 
 
-#define LOG_TAG @"LuckinPopupBlock"
+// 🌟 核心魔法：直接让编译器忽略“未使用函数”的警告，坚决不运行耗时扫描！
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+
+#define LOG_TAG @"LuckinAdBlock"
 
 // ============================================================================
-// 1. 接口与类声明 (消除向前声明报错)
+// 1. 接口与类声明
 // ============================================================================
+
+@interface LKAAdvertView : UIView
+- (void)jumpClick;
+- (void)endAction;
+@end
 
 @interface LCWebPopupContainerViewController : UIViewController
 @end
@@ -21,73 +30,83 @@
 @end
 
 // ============================================================================
-// 2. 核心拦截：H5 营销网页弹窗容器
+// 2. 开屏广告：逻辑层 0 毫秒击杀
 // ============================================================================
 
-%hook LCWebPopupContainerViewController
+%hook LKAAdvertView
 
-- (void)viewWillAppear:(BOOL)animated {
-    %orig;
-    
-    // 0 毫秒物理防漏：直接切断渲染，防止白屏闪烁
-    self.view.hidden = YES;
-    self.view.alpha = 0;
-    
-    TweakLog(LOG_TAG, @"[Hook] 成功拦截 LCWebPopupContainerViewController (H5活动弹窗)！");
-    
-    // 0 毫秒逻辑击杀：模拟点击关闭，立刻销毁控制器，把焦点还给主界面
-    if ([self respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
-        [self dismissViewControllerAnimated:NO completion:nil];
-        TweakLog(LOG_TAG, @"[Action] 主动触发 dismissViewController 销毁 H5 弹窗");
+- (instancetype)initWithFrame:(CGRect)frame EndAdBlock:(id)block {
+    self = %orig(CGRectZero, block);
+    if (self) {
+        self.hidden = YES;
+        self.alpha = 0;
+    }
+    return self;
+}
+
+- (void)requestAdData {
+    TweakLog(LOG_TAG, @"[Hook] 成功拦截 requestAdData 开屏广告请求！");
+    if ([self respondsToSelector:@selector(jumpClick)]) {
+        TweakLog(LOG_TAG, @"[Action] 主动触发 jumpClick 跳过开屏");
+        [self jumpClick];
+    }
+    if ([self respondsToSelector:@selector(endAction)]) {
+        TweakLog(LOG_TAG, @"[Action] 主动触发 endAction 结束开屏");
+        [self endAction];
     }
 }
 
+- (void)startTimer {
+    TweakLog(LOG_TAG, @"[Hook] 成功废弃 startTimer 开屏倒计时器！");
+}
+
 %end
 
 // ============================================================================
-// 3. 备选拦截：原生专属新人礼/奖励弹窗 (防漏网之鱼)
+// 3. H5 与原生营销弹窗拦截
 // ============================================================================
 
-%hook LuckinExclusiveCouponPopView
-
-- (void)show {
-    TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinExclusiveCouponPopView show 动作！");
-}
-- (void)showInView:(id)view {
-    TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinExclusiveCouponPopView showInView 动作！");
-}
-
-- (void)layoutSubviews {
+%hook LCWebPopupContainerViewController
+- (void)viewWillAppear:(BOOL)animated {
     %orig;
-    self.hidden = YES;
+    self.view.hidden = YES;
+    self.view.alpha = 0;
+    TweakLog(LOG_TAG, @"[Hook] 成功拦截 LCWebPopupContainerViewController (H5活动弹窗)！");
+    
+    if ([self respondsToSelector:@selector(dismissViewControllerAnimated:completion:)]) {
+        [self dismissViewControllerAnimated:NO completion:nil];
+        TweakLog(LOG_TAG, @"[Action] 主动销毁 H5 弹窗控制器");
+    }
 }
+%end
+
+%hook LuckinExclusiveCouponPopView
+- (void)show { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinExclusiveCouponPopView show！"); }
+- (void)showInView:(id)view { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinExclusiveCouponPopView showInView！"); }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
 %end
 
 %hook LuckinMenuRewardPopView
-
-- (void)show { TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinMenuRewardPopView show！"); }
-- (void)showInView:(id)view { TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinMenuRewardPopView showInView！"); }
-
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES;
-}
+- (void)show { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinMenuRewardPopView show！"); }
+- (void)showInView:(id)view { TweakLog(LOG_TAG, @"[Hook] 拦截 LuckinMenuRewardPopView showInView！"); }
+- (void)layoutSubviews { %orig; self.hidden = YES; }
 %end
 
 // ============================================================================
-// 4. 模块就绪日志 (调用 Debug 工具消除 unused 报错)
+// 4. 模块就绪日志 (去除了所有耗时的盲搜代码)
 // ============================================================================
+
 %ctor {
-    // 1. 调用一次，清空上次的弹窗拦截日志，同时骗过编译器
+    // 仅保留极其轻量级的文本清空操作
     ResetDebugLog(LOG_TAG);
-    
-    // 2. 顺手扫描一下内存里还有没有其他叫 Popup 的类，当做备用情报，同时骗过编译器
-    ScanRuntimeClasses(LOG_TAG, @"Popup");
     
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification * _Nonnull note) {
-        TweakLog(LOG_TAG, @"🎉 瑞幸网页活动弹窗/新人礼拦截模块已就绪！");
+        TweakLog(LOG_TAG, @"🎉 瑞幸【开屏秒进 + 弹窗全杀】极致性能版已就绪！");
     }];
 }
+
+// 恢复编译器的警告设置
+#pragma clang diagnostic pop
