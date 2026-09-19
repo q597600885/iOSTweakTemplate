@@ -1,10 +1,10 @@
 #import <UIKit/UIKit.h>
 #import "Includes/Debug.h" 
 
-#define LOG_TAG @"LuckinAdBlock"
+#define LOG_TAG @"LuckinPopupBlock"
 
 // ============================================================================
-// 1. 接口与类声明 (核心修复：补齐类的继承关系，消除编译报错)
+// 1. 接口与类声明 (消除向前声明报错)
 // ============================================================================
 
 @interface LCWebPopupContainerViewController : UIViewController
@@ -50,7 +50,6 @@
 
 %hook LuckinExclusiveCouponPopView
 
-// 逻辑层：拦截自定义 View 的弹出方法，让它从根源无法触发
 - (void)show {
     TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinExclusiveCouponPopView show 动作！");
 }
@@ -58,7 +57,6 @@
     TweakLog(LOG_TAG, @"[Hook] 逻辑层拦截 LuckinExclusiveCouponPopView showInView 动作！");
 }
 
-// 物理层：兜底防漏，一旦尝试绘制直接隐藏
 - (void)layoutSubviews {
     %orig;
     self.hidden = YES;
@@ -77,9 +75,15 @@
 %end
 
 // ============================================================================
-// 4. 模块就绪日志
+// 4. 模块就绪日志 (调用 Debug 工具消除 unused 报错)
 // ============================================================================
 %ctor {
+    // 1. 调用一次，清空上次的弹窗拦截日志，同时骗过编译器
+    ResetDebugLog(LOG_TAG);
+    
+    // 2. 顺手扫描一下内存里还有没有其他叫 Popup 的类，当做备用情报，同时骗过编译器
+    ScanRuntimeClasses(LOG_TAG, @"Popup");
+    
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue]
